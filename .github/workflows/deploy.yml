@@ -1,0 +1,67 @@
+name: Deploy
+
+# Runs entirely on the self-hosted runner in LXC 109 (ci-runner) on casala,
+# so this consumes zero GitHub-hosted minutes.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Never let two deploys race to the same Portainer stack.
+  group: deploy-main
+  cancel-in-progress: false
+
+env:
+  IMAGE: kevinjake/bills-bot
+
+jobs:
+  test:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+  build:
+    needs: test
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to Docker Hub
+        run: |
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" \
+            | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      # Plain docker build rather than buildx: the runner's Docker daemon is
+      # persistent, so layers from the previous run are already cached locally.
+      - name: Build and push
+        run: |
+          docker build -t "$IMAGE:latest" -t "$IMAGE:${{ github.sha }}" .
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:${{ github.sha }}"
+
+      - name: Log out
+        if: always()
+        run: docker logout
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    steps:
+      - name: Trigger Portainer stack webhook
+        run: |
+          curl -sS -k --pinnedpubkey "sha256//lXn3M+aVIE714fcDDGE2tTPEeRpXyMuK+WCszn2BPSc=" \
+            --retry 5 --retry-delay 5 --retry-connrefused --retry-all-errors \
+            --fail-with-body -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}"

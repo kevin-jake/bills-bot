@@ -1,0 +1,6 @@
+.env
+.env.prod
+*.db
+data/
+bot
+tmp/

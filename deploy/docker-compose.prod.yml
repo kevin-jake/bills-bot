@@ -1,0 +1,20 @@
+# Production stack for the household bills bot.
+#
+# Consumed by a git-backed Portainer stack on LXC 107 (10.150.6.120).
+# Image-only by design: CI builds and pushes the image, this file never builds.
+# Every value below comes from the stack's environment variables in Portainer.
+
+services:
+  bot:
+    image: kevinjake/bills-bot:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?required}
+      # The one group chat the bot serves.
+      TELEGRAM_GROUP_CHAT_ID: ${TELEGRAM_GROUP_CHAT_ID:?required}
+      # Comma-separated Telegram user ids allowed to use the bot.
+      ALLOWED_USER_IDS: ${ALLOWED_USER_IDS:?required}
+      SQLITE_PATH: /data/bills.db
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+    volumes:
+      - /opt/bills-bot/data:/data
