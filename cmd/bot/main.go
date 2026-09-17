@@ -7,6 +7,7 @@ import (
 	"github.com/kevin-jake/bills-bot/internal/config"
 	"github.com/kevin-jake/bills-bot/internal/storage"
 	"github.com/kevin-jake/bills-bot/internal/telegram"
+	"github.com/kevin-jake/bills-bot/internal/tracker"
 )
 
 func main() {
@@ -28,7 +29,7 @@ func main() {
 		log.Fatalf("database: %v", err)
 	}
 
-	bot, err := telegram.New(cfg)
+	bot, err := telegram.New(cfg, tracker.New(db))
 	if err != nil {
 		log.Fatalf("telegram: %v", err)
 	}

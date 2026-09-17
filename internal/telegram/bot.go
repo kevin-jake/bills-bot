@@ -9,6 +9,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/kevin-jake/bills-bot/internal/config"
+	"github.com/kevin-jake/bills-bot/internal/tracker"
 )
 
 // messageSender is the slice of the Telegram API the bot actually uses, so tests can
@@ -20,34 +21,37 @@ type messageSender interface {
 
 // Bot receives Telegram updates and acts on the ones it is allowed to act on.
 type Bot struct {
-	api    *tgbotapi.BotAPI
-	sender messageSender
-	cfg    *config.Config
+	api     *tgbotapi.BotAPI
+	sender  messageSender
+	cfg     *config.Config
+	tracker *tracker.Tracker
 }
 
 // New connects to Telegram and returns a ready bot.
-func New(cfg *config.Config) (*Bot, error) {
+func New(cfg *config.Config, tracker *tracker.Tracker) (*Bot, error) {
 	api, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
 	if err != nil {
 		return nil, err
 	}
-	return &Bot{api: api, sender: api, cfg: cfg}, nil
+	return &Bot{api: api, sender: api, cfg: cfg, tracker: tracker}, nil
 }
 
 // newBotForTest builds a Bot with no live Telegram connection.
-func newBotForTest(sender messageSender, cfg *config.Config) *Bot {
-	return &Bot{sender: sender, cfg: cfg}
+func newBotForTest(sender messageSender, cfg *config.Config, tracker *tracker.Tracker) *Bot {
+	return &Bot{sender: sender, cfg: cfg, tracker: tracker}
 }
 
 const startText = "📋 <b>Bills</b>\n\n" +
 	"I keep this month's bill list as a single pinned message, so it works like the " +
 	"sticky note: one glance to see what is left, one tap to strike something through.\n\n" +
-	"Nothing is set up yet. More commands arrive as the bot is built."
+	"<code>/bills</code> shows the standing list — what we pay every month, and who pays it. " +
+	"Months and amounts arrive as the bot is built."
 
 // Start registers the command list and consumes updates until the channel closes.
 func (b *Bot) Start() {
 	commands := []tgbotapi.BotCommand{
 		{Command: "start", Description: "What this bot does"},
+		{Command: "bills", Description: "The standing bill list"},
 	}
 	if _, err := b.sender.Request(tgbotapi.NewSetMyCommands(commands...)); err != nil {
 		log.Printf("failed to register bot commands: %v", err)
@@ -101,12 +105,14 @@ func (b *Bot) handleForeignChat(message *tgbotapi.Message) {
 	log.Printf("ignoring message from chat %d, which is not the configured group", message.Chat.ID)
 }
 
-func (b *Bot) handleCommand(message *tgbotapi.Message, command string, _ []string) {
+func (b *Bot) handleCommand(message *tgbotapi.Message, command string, args []string) {
 	switch command {
 	case "start":
 		b.sendHTML(message.Chat.ID, startText)
+	case "bills":
+		b.handleBills(message, args)
 	default:
-		b.send(message.Chat.ID, "I do not know that command. Try /start.")
+		b.send(message.Chat.ID, "I do not know that command. Try /start or /bills.")
 	}
 }
 

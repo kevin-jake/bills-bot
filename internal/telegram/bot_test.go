@@ -5,6 +5,8 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/kevin-jake/bills-bot/internal/config"
+	"github.com/kevin-jake/bills-bot/internal/storage/storagetest"
+	"github.com/kevin-jake/bills-bot/internal/tracker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,13 +44,17 @@ func (s *fakeSender) lastText() string {
 	return s.messages[len(s.messages)-1].Text
 }
 
-func newTestBot() (*Bot, *fakeSender) {
+// newTestBot wires a bot over a real migrated database, seeded standing list and all, so
+// that a command test exercises the same path as production minus Telegram itself.
+func newTestBot(t *testing.T) (*Bot, *fakeSender) {
+	t.Helper()
+
 	sender := &fakeSender{}
 	cfg := &config.Config{
 		GroupChatID:    groupChatID,
 		AllowedUserIDs: map[int64]bool{kevinID: true, sheenaID: true},
 	}
-	return newBotForTest(sender, cfg), sender
+	return newBotForTest(sender, cfg, tracker.New(storagetest.Open(t))), sender
 }
 
 // message builds an update as Telegram would deliver it. chatType matters because the
@@ -62,7 +68,7 @@ func message(chatID, userID int64, chatType, text string) *tgbotapi.Message {
 }
 
 func TestStartInTheGroupAnswers(t *testing.T) {
-	bot, sender := newTestBot()
+	bot, sender := newTestBot(t)
 
 	bot.handleMessage(message(groupChatID, kevinID, "supergroup", "/start"))
 
@@ -74,7 +80,7 @@ func TestStartInTheGroupAnswers(t *testing.T) {
 
 func TestBothAllowlistedUsersMayAct(t *testing.T) {
 	for _, userID := range []int64{kevinID, sheenaID} {
-		bot, sender := newTestBot()
+		bot, sender := newTestBot(t)
 
 		bot.handleMessage(message(groupChatID, userID, "supergroup", "/start"))
 
@@ -83,7 +89,7 @@ func TestBothAllowlistedUsersMayAct(t *testing.T) {
 }
 
 func TestStrangerInTheGroupIsIgnoredSilently(t *testing.T) {
-	bot, sender := newTestBot()
+	bot, sender := newTestBot(t)
 
 	bot.handleMessage(message(groupChatID, strangerID, "supergroup", "/start"))
 
@@ -91,7 +97,7 @@ func TestStrangerInTheGroupIsIgnoredSilently(t *testing.T) {
 }
 
 func TestPrivateChatStartIsRefusedWithAnExplanation(t *testing.T) {
-	bot, sender := newTestBot()
+	bot, sender := newTestBot(t)
 
 	bot.handleMessage(message(privateChat, kevinID, "private", "/start"))
 
@@ -100,7 +106,7 @@ func TestPrivateChatStartIsRefusedWithAnExplanation(t *testing.T) {
 }
 
 func TestPrivateChatIgnoresEverythingExceptStart(t *testing.T) {
-	bot, sender := newTestBot()
+	bot, sender := newTestBot(t)
 
 	bot.handleMessage(message(privateChat, kevinID, "private", "/board"))
 	bot.handleMessage(message(privateChat, kevinID, "private", "hello"))
@@ -109,7 +115,7 @@ func TestPrivateChatIgnoresEverythingExceptStart(t *testing.T) {
 }
 
 func TestAnotherGroupIsIgnoredEntirely(t *testing.T) {
-	bot, sender := newTestBot()
+	bot, sender := newTestBot(t)
 
 	bot.handleMessage(message(otherGroupID, kevinID, "supergroup", "/start"))
 
@@ -117,7 +123,7 @@ func TestAnotherGroupIsIgnoredEntirely(t *testing.T) {
 }
 
 func TestNonCommandChatterIsIgnored(t *testing.T) {
-	bot, sender := newTestBot()
+	bot, sender := newTestBot(t)
 
 	bot.handleMessage(message(groupChatID, kevinID, "supergroup", "what time is dinner"))
 
@@ -125,7 +131,7 @@ func TestNonCommandChatterIsIgnored(t *testing.T) {
 }
 
 func TestUnknownCommandIsAnswered(t *testing.T) {
-	bot, sender := newTestBot()
+	bot, sender := newTestBot(t)
 
 	bot.handleMessage(message(groupChatID, kevinID, "supergroup", "/nope"))
 
@@ -134,7 +140,7 @@ func TestUnknownCommandIsAnswered(t *testing.T) {
 }
 
 func TestMessageWithoutSenderOrChatIsIgnored(t *testing.T) {
-	bot, sender := newTestBot()
+	bot, sender := newTestBot(t)
 
 	bot.handleMessage(&tgbotapi.Message{Text: "/start"})
 	bot.handleMessage(&tgbotapi.Message{From: &tgbotapi.User{ID: kevinID}, Text: "/start"})

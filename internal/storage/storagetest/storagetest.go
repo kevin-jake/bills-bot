@@ -32,3 +32,18 @@ func Open(t *testing.T) *gorm.DB {
 	}
 	return db
 }
+
+// OpenEmpty returns a migrated database with the seeded standing list removed, for tests
+// about constraints and rules that want to choose their own Sections and Bills rather
+// than work around the sixteen the seed puts there.
+func OpenEmpty(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	db := Open(t)
+	for _, statement := range []string{"DELETE FROM bills", "DELETE FROM sections"} {
+		if err := db.Exec(statement).Error; err != nil {
+			t.Fatalf("clear seeded rows: %v", err)
+		}
+	}
+	return db
+}

@@ -24,7 +24,7 @@ func TestOpenForTestAppliesSchema(t *testing.T) {
 }
 
 func TestForeignKeysAreEnforced(t *testing.T) {
-	db := storagetest.Open(t)
+	db := storagetest.OpenEmpty(t)
 
 	// section_id 999 does not exist, so this must be rejected rather than silently stored.
 	err := db.Exec(`INSERT INTO bills (name, section_id, channel, display_order)
@@ -35,7 +35,7 @@ func TestForeignKeysAreEnforced(t *testing.T) {
 }
 
 func TestChannelCheckConstraint(t *testing.T) {
-	db := storagetest.Open(t)
+	db := storagetest.OpenEmpty(t)
 	require.NoError(t, db.Exec(
 		`INSERT INTO sections (id, name, display_order) VALUES (1, 'BDO', 1)`).Error)
 
@@ -64,7 +64,7 @@ func TestChannelCheckConstraint(t *testing.T) {
 }
 
 func TestActiveBillNamesAreUniqueButArchivedNamesAreFree(t *testing.T) {
-	db := storagetest.Open(t)
+	db := storagetest.OpenEmpty(t)
 	require.NoError(t, db.Exec(
 		`INSERT INTO sections (id, name, display_order) VALUES (1, 'Utilities', 1)`).Error)
 	require.NoError(t, db.Exec(`INSERT INTO bills (name, section_id, channel, display_order)
@@ -86,7 +86,7 @@ func TestActiveBillNamesAreUniqueButArchivedNamesAreFree(t *testing.T) {
 }
 
 func TestOnePayablePerBillPerCycle(t *testing.T) {
-	db := storagetest.Open(t)
+	db := storagetest.OpenEmpty(t)
 	require.NoError(t, db.Exec(
 		`INSERT INTO sections (id, name, display_order) VALUES (1, 'Utilities', 1)`).Error)
 	require.NoError(t, db.Exec(`INSERT INTO bills (id, name, section_id, channel, display_order)
@@ -123,7 +123,7 @@ func TestTransfersAreOnePerChannelPerCycleAndSheenaOnly(t *testing.T) {
 }
 
 func TestPayableAmountMayBeUnknownButNeverNegative(t *testing.T) {
-	db := storagetest.Open(t)
+	db := storagetest.OpenEmpty(t)
 	require.NoError(t, db.Exec(
 		`INSERT INTO sections (id, name, display_order) VALUES (1, 'Utilities', 1)`).Error)
 	require.NoError(t, db.Exec(`INSERT INTO bills (id, name, section_id, channel, display_order)

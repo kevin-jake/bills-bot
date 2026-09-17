@@ -7,14 +7,25 @@ surprising are in [docs/adr](./docs/adr).
 
 ## Status
 
-Walking skeleton. The database schema, configuration and the bot's access gate are in place and
-tested. There is no Board, no bill list and no reporting yet.
+The standing bill list works. The database schema, configuration, the bot's access gate and the
+list of what the household pays every month are in place and tested. There is no Cycle, no Board
+and no reporting yet: nothing carries an amount.
 
 Working today:
 
 | Command | Behaviour |
 | --- | --- |
 | `/start` | Explains what the bot is, in the configured group only |
+| `/bills` | Prints the standing list, grouped by section, with how each bill is paid |
+| `/bills add <name> \| <section> \| <channel> [\| <card>]` | Adds a bill to the end of its section |
+| `/bills section <name>` | Adds a section to the end of the display order |
+
+Channels are written as a person would say them: `kevin`, `sheena bdo`, `sheena bpi`,
+`sheena psbank`, `card`. Only a bill on `card` names the card it lands on, and every other
+channel is refused one — the schema states the same rule as a CHECK.
+
+The list is seeded from the sticky note by migration `00002`, so a fresh database already knows
+the household's sixteen bills.
 
 The gate is deliberately quiet. The bot serves exactly one group chat and exactly the Telegram
 user ids on its allowlist. A stranger in the group gets no reply at all, not even a refusal, so
@@ -50,6 +61,9 @@ constraints in the migration are covered: the channel enum, the rule that only a
 charged-to-card bill carries a card name, case-insensitive uniqueness of active bill names with
 archived names freed for reuse, one payable per bill per cycle, and one transfer per channel
 per cycle.
+
+`storagetest.Open` gives a test the database as production has it, seed included.
+`storagetest.OpenEmpty` clears the seeded list, for tests that need to choose their own bills.
 
 ## Deployment
 
