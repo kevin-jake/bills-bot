@@ -62,3 +62,50 @@ type Event struct {
 
 // TableName pins the table.
 func (Event) TableName() string { return "events" }
+
+// Cycle is a row of the cycles table.
+type Cycle struct {
+	ID int64 `gorm:"primaryKey"`
+	// Month is "YYYY-MM" in Manila.
+	Month    string
+	OpenedAt time.Time
+	ClosedAt *time.Time
+	// BoardChatID and BoardMessageID stay NULL until a Board has been posted, which is how
+	// the scheduler will tell an opened Cycle from one whose Board actually reached the group.
+	BoardChatID    *int64
+	BoardMessageID *int
+}
+
+// TableName pins the table.
+func (Cycle) TableName() string { return "cycles" }
+
+// Payable is a row of the payables table.
+type Payable struct {
+	ID      int64 `gorm:"primaryKey"`
+	CycleID int64
+	BillID  int64
+	// AmountCents is NULL while the amount is unknown, which is not the same as zero.
+	AmountCents *int64
+	Status      string
+	Channel     string
+	CardName    *string
+	PaidAt      *time.Time
+	PaidBy      *int64
+	UpdatedAt   time.Time
+}
+
+// TableName pins the table.
+func (Payable) TableName() string { return "payables" }
+
+// Transfer is a row of the transfers table.
+type Transfer struct {
+	ID        int64 `gorm:"primaryKey"`
+	CycleID   int64
+	Channel   string
+	SentCents int64
+	SentAt    time.Time
+	SentBy    int64
+}
+
+// TableName pins the table.
+func (Transfer) TableName() string { return "transfers" }

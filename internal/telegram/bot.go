@@ -6,6 +6,7 @@ package telegram
 import (
 	"log"
 	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/kevin-jake/bills-bot/internal/config"
@@ -25,6 +26,8 @@ type Bot struct {
 	sender  messageSender
 	cfg     *config.Config
 	tracker *tracker.Tracker
+	// now is the clock /newmonth reads the current month from, replaceable in tests.
+	now func() time.Time
 }
 
 // New connects to Telegram and returns a ready bot.
@@ -33,24 +36,27 @@ func New(cfg *config.Config, tracker *tracker.Tracker) (*Bot, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Bot{api: api, sender: api, cfg: cfg, tracker: tracker}, nil
+	return &Bot{api: api, sender: api, cfg: cfg, tracker: tracker, now: time.Now}, nil
 }
 
 // newBotForTest builds a Bot with no live Telegram connection.
 func newBotForTest(sender messageSender, cfg *config.Config, tracker *tracker.Tracker) *Bot {
-	return &Bot{sender: sender, cfg: cfg, tracker: tracker}
+	return &Bot{sender: sender, cfg: cfg, tracker: tracker, now: time.Now}
 }
 
 const startText = "📋 <b>Bills</b>\n\n" +
 	"I keep this month's bill list as a single pinned message, so it works like the " +
 	"sticky note: one glance to see what is left, one tap to strike something through.\n\n" +
-	"<code>/bills</code> shows the standing list — what we pay every month, and who pays it. " +
-	"Months and amounts arrive as the bot is built."
+	"<code>/newmonth</code> opens this month with every amount blank and pins its board.\n" +
+	"<code>/board</code> posts the board again when the pinned one has scrolled away.\n" +
+	"<code>/bills</code> shows the standing list — what we pay every month, and who pays it."
 
 // Start registers the command list and consumes updates until the channel closes.
 func (b *Bot) Start() {
 	commands := []tgbotapi.BotCommand{
 		{Command: "start", Description: "What this bot does"},
+		{Command: "board", Description: "Post this month's board again"},
+		{Command: "newmonth", Description: "Open a month and pin its board"},
 		{Command: "bills", Description: "The standing bill list"},
 	}
 	if _, err := b.sender.Request(tgbotapi.NewSetMyCommands(commands...)); err != nil {
@@ -63,8 +69,11 @@ func (b *Bot) Start() {
 	log.Printf("bills bot started as @%s, serving group %d", b.api.Self.UserName, b.cfg.GroupChatID)
 
 	for u := range b.api.GetUpdatesChan(update) {
-		if u.Message != nil {
+		switch {
+		case u.Message != nil:
 			b.handleMessage(u.Message)
+		case u.CallbackQuery != nil:
+			b.handleCallback(u.CallbackQuery)
 		}
 	}
 }
@@ -109,10 +118,14 @@ func (b *Bot) handleCommand(message *tgbotapi.Message, command string, args []st
 	switch command {
 	case "start":
 		b.sendHTML(message.Chat.ID, startText)
+	case "board":
+		b.handleBoard(message, args)
+	case "newmonth":
+		b.handleNewMonth(message, args)
 	case "bills":
 		b.handleBills(message, args)
 	default:
-		b.send(message.Chat.ID, "I do not know that command. Try /start or /bills.")
+		b.send(message.Chat.ID, "I do not know that command. Try /start, /board or /bills.")
 	}
 }
 

@@ -1,0 +1,23 @@
+# Local test stack: builds the image from this checkout instead of pulling from Docker Hub.
+#
+#   docker compose -f docker-compose.local.yml up --build
+#
+# Reads secrets from .env, the same file `go run` uses. Two values are overridden below
+# because they must differ inside a container.
+
+services:
+  bot:
+    build: .
+    image: bills-bot:local
+    env_file: .env
+    environment:
+      # .env points at ./data/bills.db for `go run`. Inside the container that path is
+      # outside the volume, so the database would be lost when the container is removed.
+      SQLITE_PATH: /data/bills.db
+      # Keep the scheduler off locally so it never opens cycles or posts reminders.
+      SCHEDULER_ENABLED: "false"
+    volumes:
+      # Separate from ./data so a root-owned container file never blocks `go run`.
+      - ./data-docker:/data
+    # Stop on a crash rather than looping, so the error stays on screen.
+    restart: "no"

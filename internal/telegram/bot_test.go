@@ -1,7 +1,9 @@
 package telegram
 
 import (
+	"errors"
 	"testing"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/kevin-jake/bills-bot/internal/config"
@@ -9,6 +11,7 @@ import (
 	"github.com/kevin-jake/bills-bot/internal/tracker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 const (
@@ -23,18 +26,42 @@ const (
 type fakeSender struct {
 	messages []tgbotapi.MessageConfig
 	requests []tgbotapi.Chattable
+	// nextID numbers sent messages as Telegram would, so a Board's message id can be traced.
+	nextID int
+	// refusePins makes pinning fail, as it does when the bot is not an admin.
+	refusePins bool
+	// editErr is returned from every edit, to imitate Telegram refusing one.
+	editErr error
 }
 
 func (s *fakeSender) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
+	s.nextID++
 	if msg, ok := c.(tgbotapi.MessageConfig); ok {
 		s.messages = append(s.messages, msg)
 	}
-	return tgbotapi.Message{}, nil
+	return tgbotapi.Message{MessageID: s.nextID}, nil
 }
 
 func (s *fakeSender) Request(c tgbotapi.Chattable) (*tgbotapi.APIResponse, error) {
 	s.requests = append(s.requests, c)
+	if _, ok := c.(tgbotapi.PinChatMessageConfig); ok && s.refusePins {
+		return nil, errors.New("Bad Request: not enough rights to manage pinned messages in the chat")
+	}
+	if _, ok := c.(tgbotapi.EditMessageTextConfig); ok && s.editErr != nil {
+		return nil, s.editErr
+	}
 	return &tgbotapi.APIResponse{Ok: true}, nil
+}
+
+// requestsOf returns the requests of one type, in the order they were made.
+func requestsOf[T tgbotapi.Chattable](s *fakeSender) []T {
+	var found []T
+	for _, r := range s.requests {
+		if typed, ok := r.(T); ok {
+			found = append(found, typed)
+		}
+	}
+	return found
 }
 
 func (s *fakeSender) lastText() string {
@@ -48,14 +75,27 @@ func (s *fakeSender) lastText() string {
 // that a command test exercises the same path as production minus Telegram itself.
 func newTestBot(t *testing.T) (*Bot, *fakeSender) {
 	t.Helper()
+	bot, sender, _ := newTestBotWithDB(t)
+	return bot, sender
+}
 
+// newTestBotWithDB is newTestBot for tests that must set up state no command can reach yet.
+func newTestBotWithDB(t *testing.T) (*Bot, *fakeSender, *gorm.DB) {
+	t.Helper()
+
+	db := storagetest.Open(t)
 	sender := &fakeSender{}
 	cfg := &config.Config{
 		GroupChatID:    groupChatID,
 		AllowedUserIDs: map[int64]bool{kevinID: true, sheenaID: true},
 	}
-	return newBotForTest(sender, cfg, tracker.New(storagetest.Open(t))), sender
+	bot := newBotForTest(sender, cfg, tracker.New(db))
+	bot.now = func() time.Time { return midSeptember }
+	return bot, sender, db
 }
+
+// midSeptember is the test clock: 17 September 2026, 10:00 in Manila.
+var midSeptember = time.Date(2026, 9, 17, 2, 0, 0, 0, time.UTC)
 
 // message builds an update as Telegram would deliver it. chatType matters because the
 // bot treats a private chat differently from a group it does not serve.

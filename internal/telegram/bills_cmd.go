@@ -86,6 +86,9 @@ func (b *Bot) addBill(message *tgbotapi.Message, args []string) {
 	b.sendHTML(message.Chat.ID, fmt.Sprintf("Added <b>%s</b> · %s, under <b>%s</b>.",
 		html.EscapeString(bill.Name), html.EscapeString(bill.ChannelLabel()),
 		html.EscapeString(spec.Section)))
+
+	// The new Bill joined every open Cycle, so their Boards are now a line short.
+	b.refreshOpenBoards()
 }
 
 // parseBillSpec reads "name | section | channel [| card]".

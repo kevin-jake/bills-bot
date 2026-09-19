@@ -129,10 +129,9 @@ type BillSpec struct {
 	CardName string
 }
 
-// AddBill adds a Bill to the end of its Section on the standing list.
-//
-// TODO(step 3): once Cycles exist, a Bill added mid-month also gets a due Payable in every
-// open Cycle, per the plan's state machine. There are no Cycles to add one to yet.
+// AddBill adds a Bill to the end of its Section on the standing list, and gives it a due
+// Payable in every open Cycle: a bill that starts this month is owed this month. Closed
+// Cycles are left alone, because they record a month that has already been settled.
 func (t *Tracker) AddBill(actor Actor, spec BillSpec) (domain.Bill, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -180,6 +179,16 @@ func (t *Tracker) AddBill(actor Actor, spec BillSpec) (domain.Bill, error) {
 			return err
 		}
 
+		openCycles, err := storage.ListOpenCycles(tx)
+		if err != nil {
+			return err
+		}
+		for _, cycle := range openCycles {
+			if err := createDuePayable(tx, cycle.ID, row); err != nil {
+				return err
+			}
+		}
+
 		added = toDomainBill(row)
 		return appendEvent(tx, actor, "bill.add", event{after: added, billID: &row.ID})
 	})
@@ -191,10 +200,11 @@ func (t *Tracker) AddBill(actor Actor, spec BillSpec) (domain.Bill, error) {
 
 // event is the part of an audit row a use case has to decide; the rest is filled in below.
 type event struct {
-	before any
-	after  any
-	billID *int64
-	note   string
+	before  any
+	after   any
+	cycleID *int64
+	billID  *int64
+	note    string
 }
 
 // appendEvent writes the audit row for a mutation. before and after are stored as JSON so
@@ -205,6 +215,7 @@ func appendEvent(tx *gorm.DB, actor Actor, action string, e event) error {
 		ActorTelegramID: actor.TelegramID,
 		ActorName:       actor.Name,
 		Action:          action,
+		CycleID:         e.cycleID,
 		BillID:          e.billID,
 		BeforeJSON:      encodeJSON(e.before),
 		AfterJSON:       encodeJSON(e.after),

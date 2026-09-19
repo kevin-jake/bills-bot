@@ -7,15 +7,18 @@ surprising are in [docs/adr](./docs/adr).
 
 ## Status
 
-The standing bill list works. The database schema, configuration, the bot's access gate and the
-list of what the household pays every month are in place and tested. There is no Cycle, no Board
-and no reporting yet: nothing carries an amount.
+The standing bill list and the monthly Board work. A month can be opened, which copies every bill
+onto a pinned Board with its amount unknown. Amounts cannot be entered yet, nothing can be marked
+paid, and there is no scheduler and no reporting: the Board's bill buttons answer "does not work
+yet", and only 🔄 Refresh does anything.
 
 Working today:
 
 | Command | Behaviour |
 | --- | --- |
 | `/start` | Explains what the bot is, in the configured group only |
+| `/newmonth [YYYY-MM]` | Opens this month in Manila (or the one named), posts its Board and pins it. Opening a month that exists says so and changes nothing. Up to next month may be opened |
+| `/board [YYYY-MM]` | Posts the current month's Board again at the bottom of the chat, pins it, and unpins and deletes the previous copy |
 | `/bills` | Prints the standing list, grouped by section, with how each bill is paid |
 | `/bills add <name> \| <section> \| <channel> [\| <card>]` | Adds a bill to the end of its section |
 | `/bills section <name>` | Adds a section to the end of the display order |
@@ -25,7 +28,11 @@ Channels are written as a person would say them: `kevin`, `sheena bdo`, `sheena 
 channel is refused one — the schema states the same rule as a CHECK.
 
 The list is seeded from the sticky note by migration `00002`, so a fresh database already knows
-the household's sixteen bills.
+the household's sixteen bills. A bill added while a month is open joins that month's Board, due
+and with no amount; a closed month is left alone.
+
+The bot must be a group admin with the **Pin messages** permission. Without it the Board is still
+posted, and the bot says it could not pin it.
 
 The gate is deliberately quiet. The bot serves exactly one group chat and exactly the Telegram
 user ids on its allowlist. A stranger in the group gets no reply at all, not even a refusal, so
