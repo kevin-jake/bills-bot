@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/kevin-jake/bills-bot/internal/config"
+	"github.com/kevin-jake/bills-bot/internal/scheduler"
 	"github.com/kevin-jake/bills-bot/internal/storage"
 	"github.com/kevin-jake/bills-bot/internal/telegram"
 	"github.com/kevin-jake/bills-bot/internal/tracker"
@@ -29,9 +30,19 @@ func main() {
 		log.Fatalf("database: %v", err)
 	}
 
-	bot, err := telegram.New(cfg, tracker.New(db))
+	tr := tracker.New(db)
+	bot, err := telegram.New(cfg, tr)
 	if err != nil {
 		log.Fatalf("telegram: %v", err)
+	}
+
+	// The scheduler runs beside the update loop, both going through the same Tracker, whose
+	// mutex is what keeps a month opening at eight in the morning from crossing a tap on
+	// the Board. Local work turns it off, so a dev database is not opened months ahead.
+	if cfg.SchedulerEnabled {
+		jobs := scheduler.New(tr, bot)
+		jobs.Start()
+		defer jobs.Stop()
 	}
 
 	bot.Start()

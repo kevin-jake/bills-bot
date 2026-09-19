@@ -22,6 +22,12 @@ Who pays a Bill and out of which account: Kevin directly, one of Sheena's accoun
 to a named card. It determines whether a Bill can be Funded and which Transfer it counts toward.
 _Avoid_: Method, source, payer, account
 
+**Due day**:
+The day of the month a Bill falls due, fixed by the bank rather than by the household. A Bill
+without one, such as a utility, is never late on any particular morning. A day past the end of a
+short month means that month's last day.
+_Avoid_: Deadline, due date, cut-off, statement date
+
 **Cycle**:
 One calendar month's copy of the Bill list, created on the first of the month or on demand,
 with every amount blank. Cycles overlap when an older one still has unpaid Payables.
@@ -40,6 +46,12 @@ _Avoid_: Deposit, remittance, top-up, settlement
 The single pinned message in the group that shows a Cycle laid out like the sticky note, edited
 in place as Payables change.
 _Avoid_: List, dashboard, status message, sticky note
+
+**Reminder**:
+The mid-month message listing what is still unpaid across every open Cycle, soonest Due day
+first. It is read once and then acted on from the Board, so it carries no buttons, and it is not
+sent at all when nothing is outstanding.
+_Avoid_: Alert, notification, nag, digest
 
 ## Payable states
 

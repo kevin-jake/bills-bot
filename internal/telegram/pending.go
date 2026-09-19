@@ -100,9 +100,7 @@ func (b *Bot) handlePending(message *tgbotapi.Message) bool {
 		return false
 	}
 	if expired {
-		b.closePrompt(key.chatID, p, fmt.Sprintf(
-			"<i>⌛ No answer came for <b>%s</b>, so I stopped waiting. Start again from the board.</i>",
-			html.EscapeString(p.subject)))
+		b.closePrompt(key.chatID, p, expiredPromptText(p.subject))
 		// Someone replying to the stale question deserves to know why nothing happened;
 		// anyone else was just chatting.
 		if message.ReplyToMessage != nil && message.ReplyToMessage.MessageID == p.promptMsgID {

@@ -10,7 +10,8 @@ surprising are in [docs/adr](./docs/adr).
 The standing bill list, the monthly Board, amounts, payments and Transfers work. A month can be
 opened, which copies every bill onto a pinned Board with its amount unknown; amounts are entered
 and bills marked paid from the Board; and money sent into Sheena's accounts is recorded against
-them. There is no scheduler and no reporting yet, and no free-text shortcuts.
+them. Bills can also be settled by typing rather than tapping, and the bot opens each month and
+nudges the group mid-month on its own. There is no reporting yet.
 
 Tapping a bill on the Board swaps the Board's buttons for that bill's menu: **💰 Set amount**,
 **✓ Mark paid** (offered once the amount is known and while the bill is unpaid), **↩ Undo** and
@@ -66,6 +67,26 @@ channel is refused one — the schema states the same rule as a CHECK.
 The list is seeded from the sticky note by migration `00002`, so a fresh database already knows
 the household's sixteen bills. A bill added while a month is open joins that month's Board, due
 and with no amount; a closed month is left alone.
+
+Each card is listed by the four digits printed on it and each card and loan by the day of the
+month it falls due, so a Board line reads
+`☐ BPI Visa CC ••7577 · ₱5,000.00 · Sheena BPI · due 28`. The digits are a name the bot answers
+to, so `7577 5000` enters that card's amount. A month too crowded to fit gives the digits up
+before it gives up a bill.
+
+## On its own
+
+Two jobs run without anybody typing, both at 08:00 Manila, and both written down in `job_runs`
+so that a restart cannot repeat them:
+
+- **The 1st**: the month is opened and its Board posted and pinned, exactly as `/newmonth` would.
+- **The 15th**: one message listing what is still unpaid across every open month, soonest due
+  first, with a day already gone by marked `⚠️ overdue`, and naming any of Sheena's accounts
+  that has had no Transfer. A household that is up to date hears nothing.
+
+Neither job is tied to the minute it falls due: a bot that was switched off all morning catches
+up when it comes back, and a month someone already opened by hand is left as it is. Questions
+nobody answered are also swept away each minute rather than only when that person next types.
 
 The bot must be a group admin with the **Pin messages** permission. Without it the Board is still
 posted, and the bot says it could not pin it.
