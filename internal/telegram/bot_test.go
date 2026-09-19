@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
@@ -217,4 +218,17 @@ func TestParseCommand(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHTTPClientOutlastsLongPoll(t *testing.T) {
+	client := newHTTPClient()
+
+	// No deadline would let a silently dead connection hang the poll forever; one at or
+	// just past the long poll would cut healthy polls off as they return.
+	assert.Greater(t, client.Timeout, pollTimeout+5*time.Second)
+
+	transport, ok := client.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.NotNil(t, transport.HTTP2)
+	assert.NotZero(t, transport.HTTP2.SendPingTimeout)
 }

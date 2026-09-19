@@ -5,6 +5,7 @@ package telegram
 
 import (
 	"log"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -36,9 +37,30 @@ type Bot struct {
 	pending map[pendingKey]*pending
 }
 
+// pollTimeout is how long Telegram holds a getUpdates long poll open waiting for news.
+const pollTimeout = 60 * time.Second
+
+// newHTTPClient returns the client the bot talks to Telegram through. The library's
+// default client has no deadline at all, so a connection that dies silently mid-poll
+// leaves the bot deaf until TCP notices; this one gives up a little after the long poll
+// should have answered, and pings idle HTTP/2 connections so dead ones are found early.
+func newHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.HTTP2 = &http.HTTP2Config{
+		SendPingTimeout: 30 * time.Second,
+		PingTimeout:     15 * time.Second,
+	}
+	return &http.Client{
+		Transport: transport,
+		// Well clear of pollTimeout, so a slow but healthy poll is never cut off just as
+		// it returns.
+		Timeout: pollTimeout + 15*time.Second,
+	}
+}
+
 // New connects to Telegram and returns a ready bot.
 func New(cfg *config.Config, tracker *tracker.Tracker) (*Bot, error) {
-	api, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
+	api, err := tgbotapi.NewBotAPIWithClient(cfg.TelegramToken, tgbotapi.APIEndpoint, newHTTPClient())
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +104,7 @@ func (b *Bot) Start() {
 	}
 
 	update := tgbotapi.NewUpdate(0)
-	update.Timeout = 60
+	update.Timeout = int(pollTimeout.Seconds())
 
 	log.Printf("bills bot started as @%s, serving group %d", b.api.Self.UserName, b.cfg.GroupChatID)
 
