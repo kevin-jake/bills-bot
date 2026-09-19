@@ -50,10 +50,14 @@ func TestRecordingATransferFundsTheAccountsBills(t *testing.T) {
 		`September 2026? It needs ₱16,639.31 so far, with 2 amounts still unknown. `+
 		`Reply with a number, or /cancel.`, sender.lastText())
 
+	sent := len(sender.messages)
 	reply(bot, kevinID, prompt, "17000")
 
-	assert.Equal(t, "✓ ₱17,000.00 sent to <b>Sheena BDO</b> for September 2026, funding 3 bills. — Kevin",
-		lastEdit(t, sender, prompt).Text)
+	recorded := "✓ ₱17,000.00 sent to <b>Sheena BDO</b> for September 2026, funding 3 bills. — Kevin"
+	assert.Equal(t, recorded, lastEdit(t, sender, prompt).Text)
+	require.Len(t, sender.messages, sent+1, "the transfer is confirmed with one reply")
+	assert.Equal(t, recorded, sender.messages[sent].Text)
+	assert.Equal(t, prompt+100, sender.messages[sent].ReplyToMessageID, "it replies to the typed amount")
 	board := lastEdit(t, sender, 1).Text
 	assert.Contains(t, board, "⏳ BDO Home Loan · ₱16,639.31 · Sheena BDO")
 	assert.Contains(t, board, "? BDO JCB CC · — · Sheena BDO", "an unknown amount still shows ?")

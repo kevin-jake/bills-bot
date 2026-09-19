@@ -118,7 +118,10 @@ func (b *Bot) answerTransfer(message *tgbotapi.Message, key pendingKey, p *pendi
 		return
 	}
 
-	b.closePrompt(key.chatID, p, transferRecordedText(change, message.From.FirstName))
+	// As with a bill's amount, the question keeps the record and a reply confirms it.
+	text := transferRecordedText(change, message.From.FirstName)
+	b.closePrompt(key.chatID, p, text)
+	b.replyHTML(message, text)
 	b.refreshBoard(change.Snap)
 }
 
