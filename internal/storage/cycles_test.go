@@ -150,3 +150,69 @@ func TestFindPayableLineAndTransferReturnNilWhenMissing(t *testing.T) {
 	require.NotNil(t, transfer)
 	assert.Equal(t, int64(100), transfer.SentCents)
 }
+
+func TestSetCycleClosedClosesAndReopens(t *testing.T) {
+	db := storagetest.Open(t)
+	cycle := createCycle(t, db, "2026-09", false)
+	at := time.Date(2026, 9, 16, 2, 0, 0, 0, time.UTC)
+
+	require.NoError(t, storage.SetCycleClosed(db, cycle.ID, &at))
+	found, err := storage.FindCycle(db, cycle.ID)
+	require.NoError(t, err)
+	require.NotNil(t, found.ClosedAt)
+	assert.True(t, at.Equal(*found.ClosedAt))
+
+	require.NoError(t, storage.SetCycleClosed(db, cycle.ID, nil))
+	found, err = storage.FindCycle(db, cycle.ID)
+	require.NoError(t, err)
+	assert.Nil(t, found.ClosedAt, "reopening writes NULL")
+}
+
+func TestSaveTransferInsertsThenUpdatesAndDeleteRemoves(t *testing.T) {
+	db := storagetest.Open(t)
+	cycle := createCycle(t, db, "2026-09", false)
+	transfer := storage.Transfer{
+		CycleID: cycle.ID, Channel: "sheena_bdo", SentCents: 100, SentAt: time.Now().UTC(), SentBy: 111,
+	}
+
+	require.NoError(t, storage.SaveTransfer(db, &transfer))
+	require.NotZero(t, transfer.ID)
+	transfer.SentCents, transfer.SentBy = 250, 222
+	require.NoError(t, storage.SaveTransfer(db, &transfer))
+
+	found, err := storage.FindTransferByID(db, transfer.ID)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, int64(250), found.SentCents)
+	assert.Equal(t, int64(222), found.SentBy)
+
+	require.NoError(t, storage.DeleteTransfer(db, transfer.ID))
+	found, err = storage.FindTransferByID(db, transfer.ID)
+	require.NoError(t, err)
+	assert.Nil(t, found)
+}
+
+func TestLatestPayableEventPassesOverOtherKinds(t *testing.T) {
+	db := storagetest.Open(t)
+	cycle := createCycle(t, db, "2026-09", false)
+	bills, err := storage.ListActiveBills(db)
+	require.NoError(t, err)
+	p := storage.Payable{CycleID: cycle.ID, BillID: bills[0].ID, Status: "due", Channel: bills[0].Channel}
+	require.NoError(t, storage.CreatePayable(db, &p))
+	payableID := p.ID
+
+	found, err := storage.LatestPayableEvent(db, payableID)
+	require.NoError(t, err)
+	assert.Nil(t, found, "nothing done yet")
+
+	for _, action := range []string{"payable.set_amount", "payable.mark_paid", "transfer.fund"} {
+		require.NoError(t, storage.AppendEvent(db, &storage.Event{
+			OccurredAt: time.Now().UTC(), ActorName: "Kevin", Action: action, PayableID: &payableID,
+		}))
+	}
+
+	found, err = storage.LatestPayableEvent(db, payableID)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, "payable.mark_paid", found.Action)
+}

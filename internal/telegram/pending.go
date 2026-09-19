@@ -21,6 +21,7 @@ type pendingKind int
 
 const (
 	awaitAmount pendingKind = iota + 1
+	awaitTransferAmount
 )
 
 // pendingKey identifies whose answer the bot is waiting for. It is per person, so Kevin and
@@ -32,25 +33,39 @@ type pendingKey struct {
 
 // pending is a question the bot has asked and not yet had answered.
 type pending struct {
-	kind      pendingKind
+	kind pendingKind
+	// payableID is what an awaitAmount question is about.
 	payableID int64
-	// billName is kept for the wording of the prompt's final edit, so a question can be
-	// closed off even when its Payable has since gone.
-	billName    string
+	// cycleID and channel are what an awaitTransferAmount question is about.
+	cycleID int64
+	channel domain.Channel
+	// subject names what was asked about, for the wording of the prompt's final edit, so a
+	// question can be closed off even when what it asked about has since gone.
+	subject     string
 	promptMsgID int
 	expiresAt   time.Time
 }
 
-// askAmount posts the question for a Payable's amount and waits for the asker's reply. Any
-// question already waiting for the same person is closed off, since they have moved on.
+// askAmount posts the question for a Payable's amount and waits for the asker's reply.
 func (b *Bot) askAmount(chatID int64, from *tgbotapi.User, p domain.Payable, snap domain.Snapshot) error {
-	text := fmt.Sprintf(`<a href="tg://user?id=%d">%s</a>, amount for <b>%s</b> (%s)?`,
-		from.ID, html.EscapeString(from.FirstName), html.EscapeString(p.BillName), snap.Cycle.Month.Title())
+	text := fmt.Sprintf(`%s, amount for <b>%s</b> (%s)?`,
+		mention(from), html.EscapeString(p.BillName), snap.Cycle.Month.Title())
 	if p.AmountKnown() {
 		text += " It is " + domain.FormatPesos(*p.AmountCents) + " now."
 	}
 	text += " Reply with a number, 0 for nothing due, or /cancel."
 
+	return b.ask(chatID, from, text, &pending{kind: awaitAmount, payableID: p.ID, subject: p.BillName})
+}
+
+// mention names a person in a way that notifies them.
+func mention(user *tgbotapi.User) string {
+	return fmt.Sprintf(`<a href="tg://user?id=%d">%s</a>`, user.ID, html.EscapeString(user.FirstName))
+}
+
+// ask posts a question to one person and waits for their reply. Any question already
+// waiting for the same person is closed off, since they have moved on.
+func (b *Bot) ask(chatID int64, from *tgbotapi.User, text string, next *pending) error {
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = tgbotapi.ModeHTML
 	// Selective opens the reply box only for the person mentioned, not for everyone.
@@ -61,13 +76,8 @@ func (b *Bot) askAmount(chatID int64, from *tgbotapi.User, p domain.Payable, sna
 	}
 
 	key := pendingKey{chatID: chatID, userID: from.ID}
-	next := &pending{
-		kind:        awaitAmount,
-		payableID:   p.ID,
-		billName:    p.BillName,
-		promptMsgID: sent.MessageID,
-		expiresAt:   b.now().Add(pendingTTL),
-	}
+	next.promptMsgID = sent.MessageID
+	next.expiresAt = b.now().Add(pendingTTL)
 
 	b.mu.Lock()
 	previous := b.pending[key]
@@ -91,8 +101,8 @@ func (b *Bot) handlePending(message *tgbotapi.Message) bool {
 	}
 	if expired {
 		b.closePrompt(key.chatID, p, fmt.Sprintf(
-			"<i>⌛ No answer came for <b>%s</b>, so I stopped waiting. Tap it on the board to try again.</i>",
-			html.EscapeString(p.billName)))
+			"<i>⌛ No answer came for <b>%s</b>, so I stopped waiting. Start again from the board.</i>",
+			html.EscapeString(p.subject)))
 		// Someone replying to the stale question deserves to know why nothing happened;
 		// anyone else was just chatting.
 		if message.ReplyToMessage != nil && message.ReplyToMessage.MessageID == p.promptMsgID {
@@ -109,6 +119,8 @@ func (b *Bot) handlePending(message *tgbotapi.Message) bool {
 	switch p.kind {
 	case awaitAmount:
 		b.answerAmount(message, key, p)
+	case awaitTransferAmount:
+		b.answerTransfer(message, key, p)
 	}
 	return true
 }
@@ -142,17 +154,17 @@ func (b *Bot) answerAmount(message *tgbotapi.Message, key pendingKey, p *pending
 	switch {
 	case errors.Is(err, tracker.ErrPayableUnknown), errors.Is(err, tracker.ErrCycleClosed):
 		b.closePrompt(key.chatID, p, "⚠️ "+html.EscapeString(capitalise(err.Error()))+
-			", so <b>"+html.EscapeString(p.billName)+"</b> was not changed.")
+			", so <b>"+html.EscapeString(p.subject)+"</b> was not changed.")
 		return
 	case err != nil:
 		log.Printf("failed to set the amount of payable %d: %v", p.payableID, err)
 		b.closePrompt(key.chatID, p, "Something went wrong writing that down. "+
-			"<b>"+html.EscapeString(p.billName)+"</b> was not changed.")
+			"<b>"+html.EscapeString(p.subject)+"</b> was not changed.")
 		return
 	}
 
 	b.closePrompt(key.chatID, p, amountSetText(change, message.From.FirstName))
-	b.refreshBoard(change.Snap)
+	b.showChange(change)
 }
 
 // amountSetText is what a question becomes once it is answered, so the chat reads as a
@@ -184,7 +196,7 @@ func (b *Bot) handleCancel(message *tgbotapi.Message) {
 		b.send(key.chatID, "There is nothing to cancel.")
 		return
 	}
-	b.closePrompt(key.chatID, p, "<i>Cancelled — <b>"+html.EscapeString(p.billName)+
+	b.closePrompt(key.chatID, p, "<i>Cancelled — <b>"+html.EscapeString(p.subject)+
 		"</b> was not changed.</i>")
 }
 

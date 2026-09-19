@@ -176,5 +176,9 @@ func plural(n int, noun string) string {
 // actorOf records who asked. FirstName is what Telegram gives without extra lookups, and
 // it is what the household calls each other anyway.
 func actorOf(message *tgbotapi.Message) tracker.Actor {
-	return tracker.Actor{TelegramID: message.From.ID, Name: message.From.FirstName}
+	return actorOfUser(message.From)
+}
+
+func actorOfUser(user *tgbotapi.User) tracker.Actor {
+	return tracker.Actor{TelegramID: user.ID, Name: user.FirstName}
 }

@@ -57,7 +57,10 @@ const startText = "📋 <b>Bills</b>\n\n" +
 	"sticky note: one glance to see what is left, one tap to strike something through.\n\n" +
 	"<code>/newmonth</code> opens this month with every amount blank and pins its board.\n" +
 	"<code>/board</code> posts the board again when the pinned one has scrolled away.\n" +
-	"Tap a bill on the board to enter its amount; 0 means nothing is due and ticks it off.\n" +
+	"Tap a bill on the board to enter its amount, mark it paid, or undo the last change to it; " +
+	"0 means nothing is due and ticks it off. Once everything is paid the month closes.\n" +
+	"<code>/transfer</code> records money sent into one of Sheena's accounts, which marks " +
+	"that account's bills ⏳ funded.\n" +
 	"<code>/bills</code> shows the standing list — what we pay every month, and who pays it."
 
 // Start registers the command list and consumes updates until the channel closes.
@@ -66,6 +69,7 @@ func (b *Bot) Start() {
 		{Command: "start", Description: "What this bot does"},
 		{Command: "board", Description: "Post this month's board again"},
 		{Command: "newmonth", Description: "Open a month and pin its board"},
+		{Command: "transfer", Description: "Record money sent into one of Sheena's accounts"},
 		{Command: "bills", Description: "The standing bill list"},
 		{Command: "cancel", Description: "Stop answering the question I asked you"},
 	}
@@ -137,6 +141,8 @@ func (b *Bot) handleCommand(message *tgbotapi.Message, command string, args []st
 		b.handleNewMonth(message, args)
 	case "bills":
 		b.handleBills(message, args)
+	case "transfer":
+		b.handleTransfer(message, args)
 	case "cancel":
 		b.handleCancel(message)
 	default:

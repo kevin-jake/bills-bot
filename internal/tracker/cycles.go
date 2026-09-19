@@ -177,10 +177,7 @@ func readSnapshot(tx *gorm.DB, cycle storage.Cycle) (domain.Snapshot, error) {
 		return domain.Snapshot{}, err
 	}
 	for _, tr := range transfers {
-		snap.Transfers = append(snap.Transfers, domain.Transfer{
-			ID: tr.ID, CycleID: tr.CycleID, Channel: domain.Channel(tr.Channel),
-			SentCents: tr.SentCents, SentAt: tr.SentAt, SentBy: tr.SentBy,
-		})
+		snap.Transfers = append(snap.Transfers, toDomainTransfer(tr))
 	}
 	return snap, nil
 }

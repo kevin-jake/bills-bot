@@ -49,6 +49,10 @@ func TestCallbackRoundTrips(t *testing.T) {
 		{Kind: board.KindTransfer, ID: 99999},
 		{Kind: board.KindSetAmount, ID: 7},
 		{Kind: board.KindBack, ID: 3},
+		{Kind: board.KindMarkPaid, ID: 8},
+		{Kind: board.KindUndo, ID: 9},
+		{Kind: board.KindTransferChannel, ID: 7, Arg: "psb"},
+		{Kind: board.KindTransferUndo, ID: 2},
 	} {
 		decoded, err := board.DecodeCallback(cb.Encode())
 
@@ -59,23 +63,45 @@ func TestCallbackRoundTrips(t *testing.T) {
 }
 
 func TestDecodeCallbackRefusesWhatTheBotDidNotWrite(t *testing.T) {
-	for _, data := range []string{"", "b", "b:", "b:x", "b:-1", "b:0", "z:1", "refresh"} {
+	for _, data := range []string{"", "b", "b:", "b:x", "b:-1", "b:0", "z:1", "refresh",
+		"b:1:bdo", "tc:1", "tc:1:gcash", "tc:x:bdo", "tu:1:bdo"} {
 		_, err := board.DecodeCallback(data)
 
 		assert.ErrorIs(t, err, board.ErrCallbackInvalid, "data %q", data)
 	}
 }
 
-func TestMenuOffersToSetOrChangeTheAmountAndToGoBack(t *testing.T) {
-	unknown := domain.Payable{ID: 42, CycleID: 3, BillName: "Water"}
-	amount := int64(0)
-	known := domain.Payable{ID: 42, CycleID: 3, BillName: "Water", AmountCents: &amount}
-
-	rows := board.Menu(unknown)
+func TestMenuOffersEachActionOnlyWhenItWouldBeAccepted(t *testing.T) {
+	unknown := domain.Payable{ID: 42, CycleID: 3, BillName: "Water", Status: domain.StatusDue}
+	known := unknown
+	known.AmountCents = cents(0)
+	paid := known
+	paid.Status = domain.StatusPaid
 
 	assert.Equal(t, [][]board.Button{
-		{{Text: "💰 Set amount", Data: "a:42"}},
+		{{Text: "💰 Set amount", Data: "a:42"}, {Text: "↩ Undo", Data: "u:42"}},
 		{{Text: "« Back", Data: "k:3"}},
+	}, board.Menu(unknown), "nothing to mark paid until the amount is known")
+	assert.Equal(t, [][]board.Button{
+		{{Text: "💰 Change amount", Data: "a:42"}, {Text: "✓ Mark paid", Data: "p:42"}, {Text: "↩ Undo", Data: "u:42"}},
+		{{Text: "« Back", Data: "k:3"}},
+	}, board.Menu(known))
+	assert.Len(t, board.Menu(paid)[0], 2, "a paid bill cannot be paid again")
+}
+
+func TestTransferPickerOffersEachAccountTheCycleUses(t *testing.T) {
+	snap := fourBills()
+	snap.Payables = append(snap.Payables, domain.Payable{ID: 15, SectionID: 2, BillName: "HSBC CC",
+		Channel: domain.SheenaBPI, AmountCents: cents(500000), Status: domain.StatusDue})
+
+	rows := board.TransferPicker(snap)
+
+	assert.Equal(t, [][]board.Button{
+		{{Text: "💸 Sheena BDO · sent ₱17,000.00", Data: "tc:7:bdo"}, {Text: "↩ Undo", Data: "tu:3"}},
+		{{Text: "💸 Sheena BPI · need ₱5,000.00", Data: "tc:7:bpi"}},
 	}, rows)
-	assert.Equal(t, "💰 Change amount", board.Menu(known)[0][0].Text)
+
+	snap.Transfers = nil
+	assert.Equal(t, "💸 Sheena BDO · need ₱16,639.31?", board.TransferPicker(snap)[0][0].Text,
+		"a need that is not final is marked")
 }

@@ -151,3 +151,185 @@ func lastEvent(t *testing.T, db *gorm.DB) eventRow {
 		Scan(&row).Error)
 	return row
 }
+
+var sheena = tracker.Actor{TelegramID: 222, Name: "Sheena"}
+
+func TestMarkPaidRecordsWhoPaid(t *testing.T) {
+	tr, db := newTracker(t)
+	p := payableNamed(t, tr, "Batelec")
+	_, err := tr.SetAmount(kevin, p.ID, 312050)
+	require.NoError(t, err)
+
+	change, err := tr.MarkPaid(sheena, p.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, domain.StatusPaid, change.After.Status)
+	require.NotNil(t, change.After.PaidBy)
+	assert.Equal(t, int64(222), *change.After.PaidBy)
+	assert.Equal(t, 1, change.Snap.PaidCount())
+	assert.False(t, change.Closed, "fifteen bills are still unpaid")
+	assert.Equal(t, "payable.mark_paid", lastEvent(t, db).Action)
+}
+
+func TestMarkPaidRefusals(t *testing.T) {
+	tr, db := newTracker(t)
+	p := payableNamed(t, tr, "Batelec")
+
+	_, err := tr.MarkPaid(kevin, p.ID)
+	assert.ErrorIs(t, err, domain.ErrAmountUnknown)
+
+	_, err = tr.SetAmount(kevin, p.ID, 100)
+	require.NoError(t, err)
+	_, err = tr.MarkPaid(kevin, p.ID)
+	require.NoError(t, err)
+	_, err = tr.MarkPaid(kevin, p.ID)
+	assert.ErrorIs(t, err, domain.ErrAlreadyPaid)
+
+	var events int64
+	require.NoError(t, db.Raw("SELECT COUNT(*) FROM events WHERE action = 'payable.mark_paid'").
+		Scan(&events).Error)
+	assert.Equal(t, int64(1), events, "only the payment that happened is recorded")
+}
+
+func TestUndoRestoresTheStateBeforeTheLastChange(t *testing.T) {
+	tr, db := newTracker(t)
+	p := payableNamed(t, tr, "Batelec")
+	_, err := tr.SetAmount(kevin, p.ID, 100)
+	require.NoError(t, err)
+	_, err = tr.SetAmount(kevin, p.ID, 200)
+	require.NoError(t, err)
+	_, err = tr.MarkPaid(kevin, p.ID)
+	require.NoError(t, err)
+
+	change, err := tr.Undo(sheena, p.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, domain.StatusDue, change.After.Status)
+	assert.Equal(t, int64(200), *change.After.AmountCents)
+	assert.Nil(t, change.After.PaidBy)
+	assert.Nil(t, change.After.PaidAt)
+	row := lastEvent(t, db)
+	assert.Equal(t, "payable.undo", row.Action)
+	assert.Equal(t, "Sheena", row.ActorName)
+
+	again, err := tr.Undo(sheena, p.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, domain.StatusPaid, again.After.Status, "a second undo takes back the first")
+}
+
+func TestUndoCanGoBackToAnUnknownAmount(t *testing.T) {
+	tr, _ := newTracker(t)
+	p := payableNamed(t, tr, "Water")
+	_, err := tr.SetAmount(kevin, p.ID, 0)
+	require.NoError(t, err)
+
+	change, err := tr.Undo(kevin, p.ID)
+
+	require.NoError(t, err)
+	assert.False(t, change.After.AmountKnown())
+	assert.Equal(t, domain.StatusDue, change.After.Status)
+}
+
+func TestUndoWithNothingDoneIsRefused(t *testing.T) {
+	tr, _ := newTracker(t)
+	p := payableNamed(t, tr, "Water")
+
+	_, err := tr.Undo(kevin, p.ID)
+
+	assert.ErrorIs(t, err, tracker.ErrNothingToUndo)
+}
+
+func TestUndoFitsTheStatusToTheTransfersAsTheyNowStand(t *testing.T) {
+	tr, _ := newTracker(t)
+	p := payableNamed(t, tr, "BDO Home Loan")
+	_, err := tr.SetAmount(kevin, p.ID, 1663931)
+	require.NoError(t, err)
+	_, err = tr.RecordTransfer(kevin, p.CycleID, domain.SheenaBDO, 2000000)
+	require.NoError(t, err)
+
+	// The amount was set while the channel was unfunded, but the Transfer still stands.
+	change, err := tr.Undo(sheena, p.ID)
+
+	require.NoError(t, err)
+	assert.False(t, change.After.AmountKnown())
+	assert.Equal(t, domain.StatusFunded, change.After.Status)
+}
+
+func TestUndoingAPaymentOnAFundedChannelLeavesItFunded(t *testing.T) {
+	tr, _ := newTracker(t)
+	p := payableNamed(t, tr, "BDO Home Loan")
+	_, err := tr.SetAmount(kevin, p.ID, 1663931)
+	require.NoError(t, err)
+	_, err = tr.RecordTransfer(kevin, p.CycleID, domain.SheenaBDO, 2000000)
+	require.NoError(t, err)
+	_, err = tr.MarkPaid(sheena, p.ID)
+	require.NoError(t, err)
+
+	change, err := tr.Undo(sheena, p.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, domain.StatusFunded, change.After.Status)
+	assert.Equal(t, int64(1663931), *change.After.AmountCents)
+}
+
+// payEverything sets every Payable in the Cycle to zero, which pays each at once.
+func payEverything(t *testing.T, tr *tracker.Tracker, snap domain.Snapshot) tracker.Change {
+	t.Helper()
+	var last tracker.Change
+	for _, p := range snap.Payables {
+		change, err := tr.SetAmount(kevin, p.ID, 0)
+		require.NoError(t, err)
+		last = change
+	}
+	return last
+}
+
+func TestPayingTheLastBillClosesTheCycle(t *testing.T) {
+	tr, db := newTracker(t)
+	snap, _, err := tr.OpenCycle(kevin, september)
+	require.NoError(t, err)
+
+	last := payEverything(t, tr, snap)
+
+	assert.True(t, last.Closed)
+	assert.True(t, last.Snap.Cycle.Closed())
+	assert.Equal(t, "cycle.close", lastEvent(t, db).Action)
+	current, err := tr.Snapshot(snap.Cycle.ID)
+	require.NoError(t, err)
+	assert.True(t, current.Cycle.Closed(), "closing is written down")
+
+	var closes int64
+	require.NoError(t, db.Raw("SELECT COUNT(*) FROM events WHERE action = 'cycle.close'").
+		Scan(&closes).Error)
+	assert.Equal(t, int64(1), closes, "only the last payment closes it")
+}
+
+func TestUndoReopensAClosedCycle(t *testing.T) {
+	tr, db := newTracker(t)
+	snap, _, err := tr.OpenCycle(kevin, september)
+	require.NoError(t, err)
+	last := payEverything(t, tr, snap)
+
+	change, err := tr.Undo(kevin, last.After.ID)
+
+	require.NoError(t, err)
+	assert.True(t, change.Reopened)
+	assert.False(t, change.Snap.Cycle.Closed())
+	assert.Equal(t, "cycle.reopen", lastEvent(t, db).Action)
+
+	_, err = tr.SetAmount(kevin, last.After.ID, 0)
+	require.NoError(t, err, "a reopened month takes amounts again")
+}
+
+func TestMarkPaidAndSetAmountRefuseAClosedCycle(t *testing.T) {
+	tr, _ := newTracker(t)
+	snap, _, err := tr.OpenCycle(kevin, september)
+	require.NoError(t, err)
+	last := payEverything(t, tr, snap)
+
+	_, err = tr.SetAmount(kevin, last.After.ID, 100)
+	assert.ErrorIs(t, err, tracker.ErrCycleClosed)
+	_, err = tr.MarkPaid(kevin, last.After.ID)
+	assert.ErrorIs(t, err, tracker.ErrCycleClosed)
+}

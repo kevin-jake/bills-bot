@@ -7,19 +7,43 @@ surprising are in [docs/adr](./docs/adr).
 
 ## Status
 
-The standing bill list and the monthly Board work. A month can be opened, which copies every bill
-onto a pinned Board with its amount unknown, and amounts can be entered from the Board. Nothing can
-be marked paid by hand yet, Transfers cannot be recorded, and there is no scheduler and no
-reporting: 💸 Transfer answers "does not work yet".
+The standing bill list, the monthly Board, amounts, payments and Transfers work. A month can be
+opened, which copies every bill onto a pinned Board with its amount unknown; amounts are entered
+and bills marked paid from the Board; and money sent into Sheena's accounts is recorded against
+them. There is no scheduler and no reporting yet, and no free-text shortcuts.
 
-Tapping a bill on the Board swaps the Board's buttons for that bill's menu. **💰 Set amount** asks
-whoever tapped for the figure, mentioning them with a reply box that opens only for them; their
-next message is the answer. `2499`, `2,499.50`, `₱2499` and `php 2499` are all understood. `0`
-means nothing is due: the bill is ticked off and struck through at once. Something that is not an
-amount is refused and the question stays open. A question lasts ten minutes, is replaced by a
-newer one from the same person, and can be withdrawn with `/cancel`. Once answered, the question
-is edited into a record of who entered what, and the Board is edited in place. Every amount set
-leaves a `payable.set_amount` event holding the bill's state before and after.
+Tapping a bill on the Board swaps the Board's buttons for that bill's menu: **💰 Set amount**,
+**✓ Mark paid** (offered once the amount is known and while the bill is unpaid), **↩ Undo** and
+**« Back**.
+
+**💰 Set amount** asks whoever tapped for the figure, mentioning them with a reply box that opens
+only for them; their next message is the answer. `2499`, `2,499.50`, `₱2499` and `php 2499` are
+all understood. `0` means nothing is due: the bill is ticked off and struck through at once.
+Something that is not an amount is refused and the question stays open. A question lasts ten
+minutes, is replaced by a newer one from the same person, and can be withdrawn with `/cancel`.
+Once answered, the question is edited into a record of who entered what, and the Board is edited
+in place.
+
+**✓ Mark paid** records whoever tapped as the one who paid. **↩ Undo** puts the bill back as it
+was before the last thing done to it; an Undo is itself something done, so a second Undo takes
+back the first. Undo never touches a Transfer: a bill put back to unpaid on an account that has
+been funded shows ⏳ funded, not due.
+
+When the last bill in a month is paid, the month closes: its Board shows **CLOSED**, loses its
+buttons and is unpinned, and the bot says so in a message carrying an **↩ Undo** for the payment
+that closed it. That Undo reopens the month, restores the Board's buttons and pins it again.
+
+**💸 Transfer** swaps the Board's buttons for one per account of Sheena's that the month uses,
+showing what each needs, or what was sent and an **↩ Undo**. Tapping an account asks for the
+amount the same way Set amount does. Recording a Transfer marks every bill on that account that
+is still due as ⏳ funded, including ones with no amount yet; recording again replaces the amount
+and funds anything that became due since. Undoing a Transfer puts funded bills back to due. Paid
+bills are never touched by either. The Board's footer compares need with sent, marks a need that
+still has unknown amounts as tentative, and shows the surplus or shortfall.
+
+Every change leaves an event holding the state before and after: `payable.set_amount`,
+`payable.mark_paid`, `payable.undo`, `cycle.close`, `cycle.reopen`, `transfer.record`,
+`transfer.undo`, and a `transfer.fund` / `transfer.unfund` for each bill a Transfer moved.
 
 Working today:
 
@@ -28,6 +52,8 @@ Working today:
 | `/start` | Explains what the bot is, in the configured group only |
 | `/newmonth [YYYY-MM]` | Opens this month in Manila (or the one named), posts its Board and pins it. Opening a month that exists says so and changes nothing. Up to next month may be opened |
 | `/board [YYYY-MM]` | Posts the current month's Board again at the bottom of the chat, pins it, and unpins and deletes the previous copy |
+| `/transfer` | Offers Sheena's accounts as buttons; tapping one asks how much was sent |
+| `/transfer [YYYY-MM] <account> <amount>` | Records a Transfer straight away, for the current month or the one named. Accounts are `bdo`, `bpi`, `psbank` |
 | `/bills` | Prints the standing list, grouped by section, with how each bill is paid |
 | `/bills add <name> \| <section> \| <channel> [\| <card>]` | Adds a bill to the end of its section |
 | `/bills section <name>` | Adds a section to the end of the display order |

@@ -84,3 +84,60 @@ func TestSetAmountDoesNotAliasTheCallersAmount(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(100), *from.AmountCents)
 }
+
+func TestMarkPaid(t *testing.T) {
+	now := time.Date(2026, 9, 15, 2, 0, 0, 0, time.UTC)
+	sheena := int64(222)
+
+	tests := []struct {
+		name    string
+		from    domain.Payable
+		wantErr error
+	}{
+		{"a due payable with an amount", domain.Payable{Status: domain.StatusDue, AmountCents: cents(500)}, nil},
+		{"a funded payable", domain.Payable{Status: domain.StatusFunded, AmountCents: cents(500)}, nil},
+		{"an unknown amount is refused", domain.Payable{Status: domain.StatusDue}, domain.ErrAmountUnknown},
+		{"an unknown amount is refused even when funded", domain.Payable{Status: domain.StatusFunded}, domain.ErrAmountUnknown},
+		{"paid twice is refused", domain.Payable{Status: domain.StatusPaid, AmountCents: cents(500)}, domain.ErrAlreadyPaid},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := domain.MarkPaid(tt.from, sheena, now)
+
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, domain.StatusPaid, got.Status)
+			assert.Equal(t, &sheena, got.PaidBy)
+			assert.Equal(t, &now, got.PaidAt)
+			assert.False(t, got.AutoPaid(), "a person paid it")
+		})
+	}
+}
+
+func TestFitToTransfers(t *testing.T) {
+	tests := []struct {
+		name         string
+		from         domain.Payable
+		transferSent bool
+		want         domain.Status
+	}{
+		{"due on a funded channel becomes funded", domain.Payable{Channel: domain.SheenaBDO, Status: domain.StatusDue}, true, domain.StatusFunded},
+		{"funded without a transfer goes back to due", domain.Payable{Channel: domain.SheenaBDO, Status: domain.StatusFunded}, false, domain.StatusDue},
+		{"Kevin's bills are never funded", domain.Payable{Channel: domain.KevinDirect, Status: domain.StatusDue}, true, domain.StatusDue},
+		{"paid stays paid", domain.Payable{Channel: domain.SheenaBDO, Status: domain.StatusPaid}, false, domain.StatusPaid},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, domain.FitToTransfers(tt.from, tt.transferSent).Status)
+		})
+	}
+}
+
+func TestValidateTransfer(t *testing.T) {
+	assert.NoError(t, domain.ValidateTransfer(1))
+	assert.ErrorIs(t, domain.ValidateTransfer(0), domain.ErrTransferEmpty)
+	assert.ErrorIs(t, domain.ValidateTransfer(-1), domain.ErrAmountNegative)
+}

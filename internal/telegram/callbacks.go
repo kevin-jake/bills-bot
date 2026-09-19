@@ -55,9 +55,19 @@ func (b *Bot) handleCallback(query *tgbotapi.CallbackQuery) {
 		b.showMenu(query, callback.ID)
 	case board.KindSetAmount:
 		b.startSetAmount(query, callback.ID)
+	case board.KindMarkPaid:
+		b.markPaid(query, callback.ID)
+	case board.KindUndo:
+		b.undoPayable(query, callback.ID)
+	case board.KindTransfer:
+		b.showTransferPicker(query, callback.ID)
+	case board.KindTransferChannel:
+		channel, _ := board.ChannelFromCode(callback.Arg)
+		b.startTransfer(query, callback.ID, channel)
+	case board.KindTransferUndo:
+		b.undoTransfer(query, callback.ID)
 	default:
-		// Marking paid and recording Transfers are still being built.
-		b.answer(query.ID, "That button does not work yet.")
+		b.answer(query.ID, "")
 	}
 }
 
@@ -95,6 +105,62 @@ func (b *Bot) startSetAmount(query *tgbotapi.CallbackQuery, payableID int64) {
 	}
 	b.refreshBoard(snap)
 	b.answer(query.ID, "")
+}
+
+// markPaid marks a Payable paid by whoever tapped.
+func (b *Bot) markPaid(query *tgbotapi.CallbackQuery, payableID int64) {
+	change, err := b.tracker.MarkPaid(actorOfUser(query.From), payableID)
+	if !b.refusePayableChange(query, payableID, err) {
+		return
+	}
+	b.showChange(change)
+	b.answer(query.ID, "✓ "+change.After.BillName+" is paid.")
+}
+
+// undoPayable takes back the last thing done to a Payable. It is also offered on the
+// message announcing that a month closed, which is how a closed month is reopened, so it
+// does not refuse a closed Cycle.
+func (b *Bot) undoPayable(query *tgbotapi.CallbackQuery, payableID int64) {
+	change, err := b.tracker.Undo(actorOfUser(query.From), payableID)
+	if !b.refusePayableChange(query, payableID, err) {
+		return
+	}
+	b.showChange(change)
+
+	// An Undo tapped anywhere but the Board has done its one job, so its button goes.
+	if tapped := query.Message.MessageID; tapped != 0 && tapped != change.Snap.Cycle.BoardMessageID {
+		b.removeButtons(query.Message.Chat.ID, tapped)
+	}
+	b.answer(query.ID, "↩ Undone: "+menuTitle(change.After))
+}
+
+// refusePayableChange answers a tap whose change the tracker refused, and reports whether
+// the change went through.
+func (b *Bot) refusePayableChange(query *tgbotapi.CallbackQuery, payableID int64, err error) bool {
+	switch {
+	case err == nil:
+		return true
+	case errors.Is(err, tracker.ErrPayableUnknown):
+		b.alert(query.ID, "That bill is no longer on the board. Tap 🔄 Refresh.")
+	case errors.Is(err, tracker.ErrCycleClosed):
+		b.alert(query.ID, capitalise(err.Error())+", so its bills cannot be changed.")
+	case errors.Is(err, tracker.ErrNothingToUndo), errors.Is(err, domain.ErrAmountUnknown),
+		errors.Is(err, domain.ErrAlreadyPaid):
+		b.alert(query.ID, capitalise(err.Error())+".")
+	default:
+		log.Printf("failed to change payable %d: %v", payableID, err)
+		b.answer(query.ID, "Something went wrong. Nothing was changed.")
+	}
+	return false
+}
+
+// removeButtons takes the buttons off a message.
+func (b *Bot) removeButtons(chatID int64, messageID int) {
+	edit := tgbotapi.NewEditMessageReplyMarkup(chatID, messageID,
+		tgbotapi.InlineKeyboardMarkup{InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{}})
+	if _, err := b.sender.Request(edit); err != nil && !isNotModified(err) {
+		log.Printf("failed to remove the buttons from message %d: %v", messageID, err)
+	}
 }
 
 // openPayable reads a Payable a button is about to act on, and answers the tap itself when

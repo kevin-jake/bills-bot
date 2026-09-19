@@ -171,3 +171,53 @@ func FindTransfer(db *gorm.DB, cycleID int64, channel string) (*Transfer, error)
 	}
 	return &found[0], nil
 }
+
+// SetCycleClosed records when a Cycle was closed, or with nil reopens it.
+func SetCycleClosed(db *gorm.DB, cycleID int64, closedAt *time.Time) error {
+	err := db.Model(&Cycle{}).Where("id = ?", cycleID).
+		Updates(map[string]any{"closed_at": closedAt}).Error
+	if err != nil {
+		return fmt.Errorf("set closed_at of cycle %d: %w", cycleID, err)
+	}
+	return nil
+}
+
+// FindTransferByID returns the Transfer with id, or nil when there is none.
+func FindTransferByID(db *gorm.DB, id int64) (*Transfer, error) {
+	var found []Transfer
+	if err := db.Where("id = ?", id).Limit(1).Find(&found).Error; err != nil {
+		return nil, fmt.Errorf("find transfer %d: %w", id, err)
+	}
+	if len(found) == 0 {
+		return nil, nil
+	}
+	return &found[0], nil
+}
+
+// SaveTransfer inserts t when it has no id yet, and otherwise rewrites what was sent, when
+// and by whom. Its Cycle and channel are never rewritten.
+func SaveTransfer(db *gorm.DB, t *Transfer) error {
+	if t.ID == 0 {
+		if err := db.Create(t).Error; err != nil {
+			return fmt.Errorf("create %s transfer for cycle %d: %w", t.Channel, t.CycleID, err)
+		}
+		return nil
+	}
+	err := db.Model(&Transfer{}).Where("id = ?", t.ID).Updates(map[string]any{
+		"sent_cents": t.SentCents,
+		"sent_at":    t.SentAt,
+		"sent_by":    t.SentBy,
+	}).Error
+	if err != nil {
+		return fmt.Errorf("update transfer %d: %w", t.ID, err)
+	}
+	return nil
+}
+
+// DeleteTransfer removes a Transfer that was recorded by mistake.
+func DeleteTransfer(db *gorm.DB, id int64) error {
+	if err := db.Delete(&Transfer{}, id).Error; err != nil {
+		return fmt.Errorf("delete transfer %d: %w", id, err)
+	}
+	return nil
+}

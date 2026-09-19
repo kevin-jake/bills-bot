@@ -107,3 +107,19 @@ func AppendEvent(db *gorm.DB, e *Event) error {
 	}
 	return nil
 }
+
+// LatestPayableEvent returns the newest payable.* event for a Payable, or nil when nothing
+// has been done to it yet. Events of other kinds that name the Payable, such as a Transfer
+// funding it, are passed over: Undo reverses what a person did to the bill itself.
+func LatestPayableEvent(db *gorm.DB, payableID int64) (*Event, error) {
+	var found []Event
+	err := db.Where("payable_id = ? AND action LIKE 'payable.%'", payableID).
+		Order("id DESC").Limit(1).Find(&found).Error
+	if err != nil {
+		return nil, fmt.Errorf("find latest event for payable %d: %w", payableID, err)
+	}
+	if len(found) == 0 {
+		return nil, nil
+	}
+	return &found[0], nil
+}

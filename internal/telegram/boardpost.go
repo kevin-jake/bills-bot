@@ -127,15 +127,55 @@ func (b *Bot) postBoard(snap domain.Snapshot) error {
 	if snap.Cycle.Closed() {
 		return nil
 	}
+	b.pinBoard(snap.Cycle.ID, chatID, sent.MessageID)
+	return nil
+}
+
+// pinBoard pins a Board quietly, and says so when the bot lacks the right to.
+func (b *Bot) pinBoard(cycleID, chatID int64, messageID int) {
 	pin := tgbotapi.PinChatMessageConfig{
-		ChatID: chatID, MessageID: sent.MessageID, DisableNotification: true,
+		ChatID: chatID, MessageID: messageID, DisableNotification: true,
 	}
 	if _, err := b.sender.Request(pin); err != nil {
-		log.Printf("failed to pin the board for cycle %d: %v", snap.Cycle.ID, err)
-		b.send(chatID, "I posted the board but could not pin it. Make me an admin with "+
+		log.Printf("failed to pin the board for cycle %d: %v", cycleID, err)
+		b.send(chatID, "I could not pin the board. Make me an admin with "+
 			"the Pin messages permission, then send /board again.")
 	}
-	return nil
+}
+
+// showChange brings the Board up to date after a Payable changed, and marks the moment a
+// month closes or reopens. A closed month's Board is unpinned, so the pin is left for the
+// month still being worked on, and the announcement carries an Undo for the payment that
+// closed it, since the closed Board itself has no buttons left to tap.
+func (b *Bot) showChange(change tracker.Change) {
+	b.refreshBoard(change.Snap)
+	cycle := change.Snap.Cycle
+	month := "<b>" + cycle.Month.Title() + "</b>"
+
+	switch {
+	case change.Closed:
+		if cycle.HasBoard() {
+			unpin := tgbotapi.UnpinChatMessageConfig{ChatID: cycle.BoardChatID, MessageID: cycle.BoardMessageID}
+			if _, err := b.sender.Request(unpin); err != nil {
+				log.Printf("could not unpin the board of closed cycle %d: %v", cycle.ID, err)
+			}
+		}
+		msg := tgbotapi.NewMessage(b.cfg.GroupChatID, "✅ "+month+" is all paid, so I closed it.")
+		msg.ParseMode = tgbotapi.ModeHTML
+		msg.ReplyMarkup = *markupOf([][]board.Button{{{
+			Text: "↩ Undo " + change.After.BillName,
+			Data: board.Callback{Kind: board.KindUndo, ID: change.After.ID}.Encode(),
+		}}})
+		if _, err := b.sender.Send(msg); err != nil {
+			log.Printf("failed to announce that cycle %d closed: %v", cycle.ID, err)
+		}
+	case change.Reopened:
+		if cycle.HasBoard() {
+			b.pinBoard(cycle.ID, cycle.BoardChatID, cycle.BoardMessageID)
+		}
+		b.sendHTML(b.cfg.GroupChatID, "📋 "+month+" is open again: <b>"+
+			html.EscapeString(change.After.BillName)+"</b> is no longer paid.")
+	}
 }
 
 // retireBoard unpins and deletes an earlier copy of a Board. Either can fail harmlessly:

@@ -129,7 +129,7 @@ func TestNewMonthStillOpensWhenPinningIsRefused(t *testing.T) {
 
 	require.Len(t, sender.messages, 2)
 	assert.Contains(t, sender.messages[0].Text, "Bills — September 2026")
-	assert.Contains(t, sender.lastText(), "could not pin it")
+	assert.Contains(t, sender.lastText(), "could not pin the board")
 	_, err := bot.tracker.CurrentSnapshot()
 	assert.NoError(t, err, "the month is open regardless")
 }
@@ -227,17 +227,6 @@ func TestRefreshOfAnUnchangedBoardIsNotAFailure(t *testing.T) {
 	assert.Equal(t, "Board is up to date.", answers[0].Text)
 }
 
-func TestButtonsNotBuiltYetAreStillAnswered(t *testing.T) {
-	bot, sender := newTestBot(t)
-	say(bot, "/newmonth")
-
-	tap(bot, groupChatID, kevinID, "t:1")
-
-	answers := requestsOf[tgbotapi.CallbackConfig](sender)
-	require.Len(t, answers, 1)
-	assert.Equal(t, "That button does not work yet.", answers[0].Text)
-}
-
 func TestTapsFromOutsideTheGateAreAnsweredSilently(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -276,8 +265,7 @@ func TestAddingABillMidMonthRefreshesTheBoard(t *testing.T) {
 	assert.Contains(t, edits[0].Text, "0 of 17 paid")
 }
 
-// closeCycle closes a Cycle directly. Closing arrives with marking paid, which no command
-// can do yet.
+// closeCycle closes a Cycle directly, without paying sixteen bills to get there.
 func closeCycle(t *testing.T, db *gorm.DB, cycleID int64) {
 	t.Helper()
 	require.NoError(t, db.Exec(

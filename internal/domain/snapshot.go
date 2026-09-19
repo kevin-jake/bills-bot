@@ -74,6 +74,12 @@ func (s Snapshot) PaidCount() int {
 	return paid
 }
 
+// AllPaid reports whether nothing is left to pay, which is when a Cycle closes. A Cycle
+// with no Payables at all has nothing left to pay either.
+func (s Snapshot) AllPaid() bool {
+	return s.PaidCount() == len(s.Payables)
+}
+
 // UnknownCount is how many Payables still have no amount.
 func (s Snapshot) UnknownCount() int {
 	unknown := 0
