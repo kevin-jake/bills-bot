@@ -18,6 +18,9 @@
 *.out
 coverage.*
 
+# Claude Code worktrees, which are checkouts of this repo rather than files in it
+/.claude/worktrees/
+
 # Editor / OS noise
 .DS_Store
 *.swp
