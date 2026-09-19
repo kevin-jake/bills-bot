@@ -39,6 +39,37 @@ func TestBillListGroupsTheStickyNoteBySection(t *testing.T) {
 		"bills keep the order they are listed in within a section")
 }
 
+func TestBillListCarriesTheCardDigitsAndDueDaysFromTheStickyNote(t *testing.T) {
+	tr, _ := newTracker(t)
+
+	list, err := tr.BillList()
+	require.NoError(t, err)
+
+	bills := map[string]domain.Bill{}
+	for _, section := range list {
+		for _, bill := range section.Bills {
+			bills[bill.Name] = bill
+		}
+	}
+
+	assert.Equal(t, "7577", bills["BPI Visa CC"].CardLast4)
+	assert.Equal(t, 28, bills["BPI Visa CC"].DueDay)
+	assert.Equal(t, "9361", bills["HSBC Mastercard CC"].CardLast4)
+	assert.Equal(t, 24, bills["HSBC Mastercard CC"].DueDay)
+	assert.Equal(t, "2943", bills["Unionbank Mastercard CC"].CardLast4)
+	assert.Equal(t, 5, bills["BDO JCB CC"].DueDay)
+
+	loan := bills["PSBank Car Loan"]
+	assert.Empty(t, loan.CardLast4, "a loan is not a card")
+	assert.Equal(t, 19, loan.DueDay)
+	assert.Equal(t, 21, bills["Bahay"].DueDay)
+	assert.Equal(t, 25, bills["BDO Home Loan"].DueDay)
+
+	water := bills["Water"]
+	assert.Empty(t, water.CardLast4)
+	assert.Zero(t, water.DueDay, "a utility has no fixed day")
+}
+
 func TestBillListLabelsHowEachBillIsPaid(t *testing.T) {
 	tr, _ := newTracker(t)
 
@@ -51,7 +82,7 @@ func TestBillListLabelsHowEachBillIsPaid(t *testing.T) {
 			labels[bill.Name] = bill.ChannelLabel()
 		}
 	}
-	assert.Equal(t, "Kevin", labels["UnionBank CC"])
+	assert.Equal(t, "Kevin", labels["Unionbank Mastercard CC"])
 	assert.Equal(t, "Sheena BDO", labels["BDO Home Loan"])
 	assert.Equal(t, "Sheena BPI", labels["RCBC JCB CC"])
 	assert.Equal(t, "Sheena PSBank", labels["PSBank Car Loan"])
@@ -137,12 +168,12 @@ func TestAddBillChargedToACardKeepsTheCardName(t *testing.T) {
 	tr, _ := newTracker(t)
 
 	added, err := tr.AddBill(kevin, tracker.BillSpec{
-		Name: "Spotify", Section: "Utilities", Channel: domain.ChargedToCard, CardName: "BPI CC",
+		Name: "Spotify", Section: "Utilities", Channel: domain.ChargedToCard, CardName: "BPI Visa CC",
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "BPI CC", added.CardName)
-	assert.Equal(t, "→ BPI CC", added.ChannelLabel())
+	assert.Equal(t, "BPI Visa CC", added.CardName)
+	assert.Equal(t, "→ BPI Visa CC", added.ChannelLabel())
 }
 
 func TestAddBillRefusals(t *testing.T) {
@@ -175,7 +206,7 @@ func TestAddBillRefusals(t *testing.T) {
 			"a card name on a channel that cannot have one",
 			tracker.BillSpec{
 				Name: "Netflix", Section: "Utilities",
-				Channel: domain.KevinDirect, CardName: "BPI CC",
+				Channel: domain.KevinDirect, CardName: "BPI Visa CC",
 			},
 			domain.ErrCardNameUnwanted,
 		},

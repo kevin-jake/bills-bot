@@ -53,7 +53,7 @@ func TestChannelCheckConstraint(t *testing.T) {
 
 	t.Run("other channels must not carry a card name", func(t *testing.T) {
 		err := db.Exec(`INSERT INTO bills (name, section_id, channel, card_name, display_order)
-		                VALUES ('Water', 1, 'kevin_direct', 'BPI CC', 1)`).Error
+		                VALUES ('Water', 1, 'kevin_direct', 'BPI Visa CC', 1)`).Error
 		require.Error(t, err)
 	})
 

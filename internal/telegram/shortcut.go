@@ -34,7 +34,8 @@ func (b *Bot) handleShortcut(message *tgbotapi.Message) {
 	var candidates []parse.Candidate
 	for _, section := range sections {
 		for _, bill := range section.Bills {
-			candidates = append(candidates, parse.Candidate{ID: bill.ID, Name: bill.Name, Aliases: bill.Aliases})
+			candidates = append(candidates, parse.Candidate{
+				ID: bill.ID, Name: bill.Name, Aliases: bill.Aliases, Last4: bill.CardLast4})
 		}
 	}
 

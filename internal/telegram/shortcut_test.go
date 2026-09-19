@@ -43,7 +43,7 @@ func TestTypingANameAndAmountSetsIt(t *testing.T) {
 	require.Len(t, sent, 1)
 	assert.Equal(t, "✓ <b>RCBC JCB CC</b> set to ₱103,431.23. — Kevin", sent[0].Text)
 	assert.Equal(t, 500, sent[0].ReplyToMessageID, "it answers the message it read")
-	assert.Contains(t, lastEdit(t, sender, 1).Text, "☐ RCBC JCB CC · ₱103,431.23 · Sheena BPI")
+	assert.Contains(t, lastEdit(t, sender, 1).Text, "☐ RCBC JCB CC ••1006 · ₱103,431.23 · Sheena BPI · due 28")
 }
 
 func TestTypedShortcutsFromThePlan(t *testing.T) {
@@ -57,7 +57,7 @@ func TestTypedShortcutsFromThePlan(t *testing.T) {
 			func(t *testing.T, p domain.Payable) { assert.Equal(t, int64(249900), *p.AmountCents) }},
 		{"batelec 0", "Batelec", "✓ <b>Batelec</b>: nothing due this month, so it is marked paid. — Kevin",
 			func(t *testing.T, p domain.Payable) { assert.True(t, p.AutoPaid()) }},
-		{"paid bpi cc 5000", "BPI CC", "✓ <b>BPI CC</b> · ₱5,000.00 is paid. — Kevin",
+		{"paid bpi cc 5000", "BPI Visa CC", "✓ <b>BPI Visa CC</b> · ₱5,000.00 is paid. — Kevin",
 			func(t *testing.T, p domain.Payable) {
 				assert.True(t, p.Paid())
 				assert.Equal(t, kevinID, *p.PaidBy)
@@ -79,20 +79,20 @@ func TestTypedShortcutsFromThePlan(t *testing.T) {
 
 func TestPaidWithoutAnAmountNeedsOneFirst(t *testing.T) {
 	bot, sender := newTestBot(t)
-	openSeptember(t, bot, "BPI CC")
+	openSeptember(t, bot, "BPI Visa CC")
 
 	sent := typed(bot, sender, "paid bpi cc")
 
 	require.Len(t, sent, 1)
 	assert.Contains(t, sent[0].Text, "has no amount yet")
-	assert.False(t, payable(t, bot, "BPI CC").Paid())
+	assert.False(t, payable(t, bot, "BPI Visa CC").Paid())
 
 	typed(bot, sender, "bpi cc 1200")
 	sent = typed(bot, sender, "bpi cc paid")
 
 	require.Len(t, sent, 1)
-	assert.Equal(t, "✓ <b>BPI CC</b> · ₱1,200.00 is paid. — Kevin", sent[0].Text)
-	assert.Contains(t, lastEdit(t, sender, 1).Text, "✓ <s>BPI CC · ₱1,200.00 · Sheena BPI</s>")
+	assert.Equal(t, "✓ <b>BPI Visa CC</b> · ₱1,200.00 is paid. — Kevin", sent[0].Text)
+	assert.Contains(t, lastEdit(t, sender, 1).Text, "✓ <s>BPI Visa CC ••7577 · ₱1,200.00 · Sheena BPI · due 28</s>")
 }
 
 func TestUndoTakesBackTheLastTypedChange(t *testing.T) {
@@ -165,7 +165,7 @@ func TestAnAmbiguousNameAsksWhichOne(t *testing.T) {
 
 func TestNoneOfTheseChangesNothing(t *testing.T) {
 	bot, sender := newTestBot(t)
-	openSeptember(t, bot, "BPI CC")
+	openSeptember(t, bot, "BPI Visa CC")
 	typed(bot, sender, "paid bpi")
 	questionID := sender.nextID
 

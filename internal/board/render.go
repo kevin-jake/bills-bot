@@ -89,12 +89,20 @@ func payableLine(p domain.Payable, mode Mode) string {
 	if p.AmountKnown() {
 		amount = domain.FormatPesos(*p.AmountCents)
 	}
+	// Full names the card by its last four digits, which is how someone checking a statement
+	// tells two cards from the same bank apart. A shorter Board gives the digits up first:
+	// the name alone is still enough to know which line to tap.
+	name := p.DisplayName()
 	label := p.ChannelLabel()
 	if mode != Full {
+		name = p.BillName
 		label = shortLabel(p)
 	}
 
-	line := html.EscapeString(p.BillName) + " · " + amount + " · " + html.EscapeString(label)
+	line := html.EscapeString(name) + " · " + amount + " · " + html.EscapeString(label)
+	if due := p.DueLabel(); due != "" {
+		line += " · " + due
+	}
 	if p.Paid() {
 		return Marker(p) + " <s>" + line + "</s>"
 	}

@@ -127,7 +127,7 @@ func TestRecordTransferRefusesAnAccountNothingIsPaidThrough(t *testing.T) {
 
 func TestSetAmountOnAFundedChannelAfterAnAutoPayGoesBackToFunded(t *testing.T) {
 	tr, _ := newTracker(t)
-	p := payableNamed(t, tr, "HSBC CC")
+	p := payableNamed(t, tr, "HSBC Mastercard CC")
 	_, err := tr.SetAmount(kevin, p.ID, 0)
 	require.NoError(t, err)
 	_, err = tr.RecordTransfer(kevin, p.CycleID, domain.SheenaBPI, 100)

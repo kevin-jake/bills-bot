@@ -93,6 +93,10 @@ type PayableLine struct {
 	Payable
 	BillName  string
 	SectionID int64
+	// CardLast4 and DueDay come from the Bill too, so a card reissued with new digits or a
+	// due day the bank moved shows its current form wherever the Payable is read.
+	CardLast4 *string
+	DueDay    *int
 }
 
 // ListPayableLines returns a Cycle's Payables in Board order: Section display order, then
@@ -100,7 +104,8 @@ type PayableLine struct {
 func ListPayableLines(db *gorm.DB, cycleID int64) ([]PayableLine, error) {
 	var lines []PayableLine
 	err := db.Raw(`
-		SELECT payables.*, bills.name AS bill_name, bills.section_id AS section_id
+		SELECT payables.*, bills.name AS bill_name, bills.section_id AS section_id,
+		       bills.card_last4 AS card_last4, bills.due_day AS due_day
 		FROM payables
 		JOIN bills    ON bills.id = payables.bill_id
 		JOIN sections ON sections.id = bills.section_id
@@ -127,7 +132,8 @@ func ListTransfers(db *gorm.DB, cycleID int64) ([]Transfer, error) {
 func FindPayableLine(db *gorm.DB, id int64) (*PayableLine, error) {
 	var found []PayableLine
 	err := db.Raw(`
-		SELECT payables.*, bills.name AS bill_name, bills.section_id AS section_id
+		SELECT payables.*, bills.name AS bill_name, bills.section_id AS section_id,
+		       bills.card_last4 AS card_last4, bills.due_day AS due_day
 		FROM payables
 		JOIN bills ON bills.id = payables.bill_id
 		WHERE payables.id = ?`, id).Scan(&found).Error

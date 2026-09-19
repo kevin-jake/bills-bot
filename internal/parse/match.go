@@ -11,6 +11,18 @@ type Candidate struct {
 	ID      int64
 	Name    string
 	Aliases []string
+	// Last4 is the card's last four digits, matched like a name of its own: the digits are
+	// what someone reads off a statement, and typing them is quicker than "hsbc mastercard".
+	Last4 string
+}
+
+// phrases are every form of a Candidate's name that a typed name may be compared against.
+func (c Candidate) phrases() []string {
+	all := append([]string{c.Name}, c.Aliases...)
+	if c.Last4 != "" {
+		all = append(all, c.Last4)
+	}
+	return all
 }
 
 // Scores MatchBill gives a candidate phrase, best first.
@@ -46,9 +58,9 @@ func MatchBill(name string, candidates []Candidate) []Candidate {
 	var best []Candidate
 	bestScore := 0
 	for _, c := range candidates {
-		score := scorePhrase(typed, tokens(c.Name))
-		for _, alias := range c.Aliases {
-			score = max(score, scorePhrase(typed, tokens(alias)))
+		score := 0
+		for _, phrase := range c.phrases() {
+			score = max(score, scorePhrase(typed, tokens(phrase)))
 		}
 		switch {
 		case score == 0 || score < bestScore:
@@ -70,7 +82,7 @@ func Mentions(name string, candidates []Candidate) bool {
 			continue
 		}
 		for _, c := range candidates {
-			for _, phrase := range append([]string{c.Name}, c.Aliases...) {
+			for _, phrase := range c.phrases() {
 				for _, candidate := range tokens(phrase) {
 					if strings.HasPrefix(candidate, word) {
 						return true

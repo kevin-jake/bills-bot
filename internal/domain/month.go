@@ -52,6 +52,12 @@ func (m Month) Start() time.Time {
 	return time.Date(m.Year, m.Month, 1, 0, 0, 0, 0, Manila)
 }
 
+// Days is how many days the month has, which is what a due day past the end of a short
+// month is pulled back to.
+func (m Month) Days() int {
+	return time.Date(m.Year, m.Month+1, 0, 0, 0, 0, 0, Manila).Day()
+}
+
 // Next is the month after m.
 func (m Month) Next() Month {
 	return MonthOf(m.Start().AddDate(0, 1, 0))

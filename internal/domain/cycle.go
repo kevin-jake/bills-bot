@@ -40,6 +40,10 @@ type Payable struct {
 	SectionID int64
 	Channel   Channel
 	CardName  string
+	// CardLast4 and DueDay are read live from the Bill, like the name: they describe the
+	// card or loan itself rather than what happened in this month.
+	CardLast4 string
+	DueDay    int
 	// AmountCents is nil while the amount is unknown. Zero is a real amount: nothing due.
 	AmountCents *int64
 	Status      Status
@@ -57,6 +61,16 @@ func (p Payable) Paid() bool { return p.Status == StatusPaid }
 func (p Payable) ChannelLabel() string {
 	return ChannelLabel(p.Channel, p.CardName)
 }
+
+// DisplayName writes the Bill's name with its card's last four digits.
+func (p Payable) DisplayName() string { return DisplayName(p.BillName, p.CardLast4) }
+
+// DueLabel writes when the Payable falls due, or empty when its Bill has no fixed day.
+func (p Payable) DueLabel() string { return DueLabel(p.DueDay) }
+
+// DueDate is when the Payable falls due within the Cycle's month, or the zero time when
+// its Bill has no fixed day.
+func (p Payable) DueDate(month Month) time.Time { return DueDate(month, p.DueDay) }
 
 // Transfer is the money Kevin sent into one of Sheena's accounts for a Cycle.
 type Transfer struct {

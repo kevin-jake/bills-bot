@@ -159,8 +159,12 @@ func renderBillList(list []tracker.SectionBills) string {
 	for _, section := range list {
 		fmt.Fprintf(&out, "\n<b>%s</b>\n", html.EscapeString(section.Section.Name))
 		for _, bill := range section.Bills {
-			fmt.Fprintf(&out, "• %s · %s\n",
-				html.EscapeString(bill.Name), html.EscapeString(bill.ChannelLabel()))
+			line := "• " + html.EscapeString(bill.DisplayName()) + " · " +
+				html.EscapeString(bill.ChannelLabel())
+			if due := bill.DueLabel(); due != "" {
+				line += " · " + due
+			}
+			out.WriteString(line + "\n")
 		}
 	}
 	return strings.TrimRight(out.String(), "\n")

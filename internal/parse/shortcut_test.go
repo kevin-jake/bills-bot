@@ -22,7 +22,7 @@ func TestParse(t *testing.T) {
 	}{
 		{"rcbc jcb 103431.23", Shortcut{Verb: VerbSetAmount, Name: "rcbc jcb", Amount: cents(10343123)}},
 		{"paid bpi cc", Shortcut{Verb: VerbPaid, Name: "bpi cc", Explicit: true}},
-		{"Paid BPI CC 5,000", Shortcut{Verb: VerbPaid, Name: "bpi cc", Amount: cents(500000), Explicit: true}},
+		{"Paid BPI Visa CC 5,000", Shortcut{Verb: VerbPaid, Name: "bpi visa cc", Amount: cents(500000), Explicit: true}},
 		{"bpi cc paid", Shortcut{Verb: VerbPaid, Name: "bpi cc", Explicit: true}},
 		{"PLDT = 2,499", Shortcut{Verb: VerbSetAmount, Name: "pldt", Amount: cents(249900), Explicit: true}},
 		{"pldt=2499", Shortcut{Verb: VerbSetAmount, Name: "pldt", Amount: cents(249900), Explicit: true}},

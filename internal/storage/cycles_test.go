@@ -75,7 +75,7 @@ func TestPayableLinesComeInBoardOrderWithTheBillName(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, lines, 16)
-	assert.Equal(t, "UnionBank CC", lines[0].BillName)
+	assert.Equal(t, "Unionbank Mastercard CC", lines[0].BillName)
 	assert.Equal(t, "BDO JCB CC", lines[1].BillName)
 	assert.Equal(t, "GCash funds", lines[15].BillName)
 	assert.Nil(t, lines[0].AmountCents, "a new payable's amount is unknown")
@@ -112,7 +112,7 @@ func TestUpdatePayableStateWritesNullsBack(t *testing.T) {
 	found, err := storage.FindPayableLine(db, p.ID)
 	require.NoError(t, err)
 	require.NotNil(t, found)
-	assert.Equal(t, "UnionBank CC", found.BillName)
+	assert.Equal(t, "Unionbank Mastercard CC", found.BillName)
 	assert.Equal(t, "paid", found.Status)
 	require.NotNil(t, found.AmountCents)
 	assert.Equal(t, int64(0), *found.AmountCents, "zero is stored as zero, not as unknown")

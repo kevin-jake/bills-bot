@@ -59,7 +59,7 @@ func TestSetAmountZeroPaysAtOnce(t *testing.T) {
 
 func TestSetAmountAfterAZeroGoesBackToFundedWhenATransferWasSent(t *testing.T) {
 	tr, db := newTracker(t)
-	p := payableNamed(t, tr, "HSBC CC")
+	p := payableNamed(t, tr, "HSBC Mastercard CC")
 	_, err := tr.SetAmount(kevin, p.ID, 0)
 	require.NoError(t, err)
 	require.NoError(t, db.Exec(`INSERT INTO transfers (cycle_id, channel, sent_cents, sent_at, sent_by)

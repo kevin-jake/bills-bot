@@ -72,6 +72,39 @@ func TestRenderCompactShortensLabelsAndDropsSubtotals(t *testing.T) {
 	assert.Contains(t, text, "<b>Transfers</b>")
 }
 
+func TestRenderShowsACardsDigitsAndItsDueDay(t *testing.T) {
+	snap := domain.Snapshot{
+		Cycle:    domain.Cycle{ID: 1, Month: domain.Month{Year: 2026, Month: time.September}},
+		Sections: []domain.Section{{ID: 1, Name: "HSBC"}, {ID: 2, Name: "PSBank"}},
+		Payables: []domain.Payable{
+			{ID: 1, SectionID: 1, BillName: "HSBC Mastercard CC", CardLast4: "9361", DueDay: 24,
+				Channel: domain.SheenaBPI, AmountCents: cents(500000), Status: domain.StatusDue},
+			{ID: 2, SectionID: 2, BillName: "PSBank Car Loan", DueDay: 19,
+				Channel: domain.SheenaPSBank, AmountCents: cents(2451500), Status: domain.StatusDue},
+		},
+	}
+
+	text := board.Render(snap)
+
+	assert.Contains(t, text, "☐ HSBC Mastercard CC ••9361 · ₱5,000.00 · Sheena BPI · due 24")
+	assert.Contains(t, text, "☐ PSBank Car Loan · ₱24,515.00 · Sheena PSBank · due 19",
+		"a loan has no digits but still has a due day")
+}
+
+func TestRenderCompactGivesUpTheDigitsButKeepsTheDueDay(t *testing.T) {
+	snap := domain.Snapshot{
+		Sections: []domain.Section{{ID: 1, Name: "HSBC"}},
+		Payables: []domain.Payable{{ID: 1, SectionID: 1, BillName: "HSBC Mastercard CC",
+			CardLast4: "9361", DueDay: 24, Channel: domain.SheenaBPI,
+			AmountCents: cents(500000), Status: domain.StatusDue}},
+	}
+
+	text := board.RenderMode(snap, board.Compact)
+
+	assert.Contains(t, text, "☐ HSBC Mastercard CC · ₱5,000.00 · S-BPI · due 24")
+	assert.NotContains(t, text, "••9361", "a crowded board spends its characters on the bills")
+}
+
 func TestRenderTransferFooter(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -98,7 +131,7 @@ func TestRenderTransferFooter(t *testing.T) {
 			}
 			snap := domain.Snapshot{
 				Sections: []domain.Section{{ID: 1, Name: "BPI"}},
-				Payables: []domain.Payable{{ID: 1, SectionID: 1, BillName: "BPI CC",
+				Payables: []domain.Payable{{ID: 1, SectionID: 1, BillName: "BPI Visa CC",
 					Channel: domain.SheenaBPI, AmountCents: cents(100000), Status: status}},
 				Transfers: tt.sent,
 			}

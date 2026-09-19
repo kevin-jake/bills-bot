@@ -60,7 +60,7 @@ func TestRecordingATransferFundsTheAccountsBills(t *testing.T) {
 	assert.Equal(t, prompt+100, sender.messages[sent].ReplyToMessageID, "it replies to the typed amount")
 	board := lastEdit(t, sender, 1).Text
 	assert.Contains(t, board, "⏳ BDO Home Loan · ₱16,639.31 · Sheena BDO")
-	assert.Contains(t, board, "? BDO JCB CC · — · Sheena BDO", "an unknown amount still shows ?")
+	assert.Contains(t, board, "? BDO JCB CC ••5994 · — · Sheena BDO · due 5", "an unknown amount still shows ?")
 	assert.Contains(t, board, "Sheena BDO: need ₱16,639.31 <i>(tentative, 2 unknown)</i> · "+
 		"sent ₱17,000.00 (+₱360.69) ⏳")
 }
@@ -160,11 +160,11 @@ func TestTransfersForAClosedMonthAreRefused(t *testing.T) {
 
 func TestSetAmountAfterZeroOnAFundedAccountShowsFunded(t *testing.T) {
 	bot, sender := newTestBot(t)
-	p := openSeptember(t, bot, "HSBC CC")
+	p := openSeptember(t, bot, "HSBC Mastercard CC")
 	setAmount(t, bot, sender, p, "0")
 	say(bot, "/transfer bpi 100")
 
 	setAmount(t, bot, sender, p, "5000")
 
-	assert.Contains(t, lastEdit(t, sender, 1).Text, "⏳ HSBC CC · ₱5,000.00 · Sheena BPI")
+	assert.Contains(t, lastEdit(t, sender, 1).Text, "⏳ HSBC Mastercard CC ••9361 · ₱5,000.00 · Sheena BPI · due 24")
 }

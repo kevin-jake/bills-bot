@@ -210,5 +210,11 @@ func toDomainPayable(line storage.PayableLine) domain.Payable {
 	if line.CardName != nil {
 		p.CardName = *line.CardName
 	}
+	if line.CardLast4 != nil {
+		p.CardLast4 = *line.CardLast4
+	}
+	if line.DueDay != nil {
+		p.DueDay = *line.DueDay
+	}
 	return p
 }

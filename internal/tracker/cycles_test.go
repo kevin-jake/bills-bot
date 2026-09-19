@@ -32,7 +32,7 @@ func TestOpenCycleCopiesTheStandingListWithEveryAmountUnknown(t *testing.T) {
 		assert.False(t, p.AmountKnown(), "%s should open with no amount", p.BillName)
 		assert.Equal(t, domain.StatusDue, p.Status, "%s should open due", p.BillName)
 	}
-	assert.Equal(t, "UnionBank CC", snap.Payables[0].BillName, "payables come in board order")
+	assert.Equal(t, "Unionbank Mastercard CC", snap.Payables[0].BillName, "payables come in board order")
 	assert.Len(t, snap.SectionGroups(), 9)
 	assert.Equal(t, 16, snap.UnknownCount())
 }
@@ -147,7 +147,7 @@ func TestAddBillMidCycleJoinsEveryOpenCycleButNotAClosedOne(t *testing.T) {
 		aug.Cycle.ID).Error)
 
 	_, err = tr.AddBill(kevin, tracker.BillSpec{
-		Name: "Netflix", Section: "Utilities", Channel: domain.ChargedToCard, CardName: "BPI CC",
+		Name: "Netflix", Section: "Utilities", Channel: domain.ChargedToCard, CardName: "BPI Visa CC",
 	})
 	require.NoError(t, err)
 
@@ -158,7 +158,7 @@ func TestAddBillMidCycleJoinsEveryOpenCycleButNotAClosedOne(t *testing.T) {
 	assert.Equal(t, "Netflix", netflix.BillName)
 	assert.Equal(t, domain.StatusDue, netflix.Status)
 	assert.False(t, netflix.AmountKnown())
-	assert.Equal(t, "BPI CC", netflix.CardName)
+	assert.Equal(t, "BPI Visa CC", netflix.CardName)
 
 	closed, err := tr.Snapshot(aug.Cycle.ID)
 	require.NoError(t, err)

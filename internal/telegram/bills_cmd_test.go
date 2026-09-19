@@ -26,10 +26,10 @@ func TestBillsPrintsTheStickyNoteGroupedBySection(t *testing.T) {
 
 	assert.Equal(t, tgbotapi.ModeHTML, sender.messages[0].ParseMode)
 	assert.Contains(t, text, "16 bills in 9 sections")
-	assert.Contains(t, text, "<b>BDO</b>\n• BDO JCB CC · Sheena BDO\n"+
-		"• BDO Unionpay CC · Sheena BDO\n• BDO Home Loan · Sheena BDO")
-	assert.Contains(t, text, "• UnionBank CC · Kevin")
-	assert.Contains(t, text, "• PSBank Car Loan · Sheena PSBank")
+	assert.Contains(t, text, "<b>BDO</b>\n• BDO JCB CC ••5994 · Sheena BDO · due 5\n"+
+		"• BDO Unionpay CC ••1630 · Sheena BDO · due 5\n• BDO Home Loan · Sheena BDO · due 25")
+	assert.Contains(t, text, "• Unionbank Mastercard CC ••2943 · Kevin · due 28")
+	assert.Contains(t, text, "• PSBank Car Loan · Sheena PSBank · due 19")
 	assert.Contains(t, text, "• Internet PLDT · → RCBC Visa Airmiles")
 	assert.Contains(t, text, "• BPI Wealth Builder · Kevin")
 }
@@ -101,7 +101,7 @@ func TestBillsAddRefusals(t *testing.T) {
 		{"too few fields", "/bills add Netflix | Utilities", "separated by |"},
 		{"too many fields", "/bills add A | B | kevin | C | D", "separated by |"},
 		{"a card with no card named", "/bills add Netflix | Utilities | card", "⚠️ A bill charged to a card needs the card"},
-		{"a card name where none belongs", "/bills add N | Utilities | kevin | BPI CC", "⚠️ Only a bill charged to a card"},
+		{"a card name where none belongs", "/bills add N | Utilities | kevin | BPI Visa CC", "⚠️ Only a bill charged to a card"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

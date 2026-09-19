@@ -8,14 +8,14 @@ import (
 
 // seeded is the standing list as migration 00002 writes it.
 var seeded = []Candidate{
-	{ID: 1, Name: "UnionBank CC"},
+	{ID: 1, Name: "Unionbank Mastercard CC"},
 	{ID: 2, Name: "BDO JCB CC"},
 	{ID: 3, Name: "BDO Unionpay CC"},
 	{ID: 4, Name: "BDO Home Loan"},
 	{ID: 5, Name: "RCBC JCB CC"},
 	{ID: 6, Name: "RCBC Visa Airmiles"},
-	{ID: 7, Name: "BPI CC"},
-	{ID: 8, Name: "HSBC CC"},
+	{ID: 7, Name: "BPI Visa CC"},
+	{ID: 8, Name: "HSBC Mastercard CC"},
 	{ID: 9, Name: "PSBank Car Loan"},
 	{ID: 10, Name: "Bahay"},
 	{ID: 11, Name: "BPI Investment"},
@@ -80,6 +80,16 @@ func TestMatchBillReadsAliases(t *testing.T) {
 
 	assert.Equal(t, []int64{14}, ids(MatchBill("meralco", candidates)))
 	assert.Equal(t, []int64{14}, ids(MatchBill("kury", candidates)))
+}
+
+func TestMatchBillReadsACardsLastFourDigits(t *testing.T) {
+	candidates := append([]Candidate{}, seeded...)
+	candidates[6].Last4 = "7577" // BPI Visa CC
+	candidates[7].Last4 = "9361" // HSBC Mastercard CC
+
+	assert.Equal(t, []int64{7}, ids(MatchBill("7577", candidates)), "the digits off a statement")
+	assert.Equal(t, []int64{8}, ids(MatchBill("9361", candidates)))
+	assert.Nil(t, ids(MatchBill("1234", candidates)), "digits of no card here")
 }
 
 func TestMentions(t *testing.T) {

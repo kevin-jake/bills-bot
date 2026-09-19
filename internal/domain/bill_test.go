@@ -21,7 +21,7 @@ func TestValidateBill(t *testing.T) {
 		{"charged to a named card", "Internet PLDT", domain.ChargedToCard, "RCBC Visa Airmiles", nil},
 		{"no name", "  ", domain.KevinDirect, "", domain.ErrNameRequired},
 		{"card without a name", "Internet PLDT", domain.ChargedToCard, "", domain.ErrCardNameRequired},
-		{"card name on another channel", "Water", domain.KevinDirect, "BPI CC", domain.ErrCardNameUnwanted},
+		{"card name on another channel", "Water", domain.KevinDirect, "BPI Visa CC", domain.ErrCardNameUnwanted},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

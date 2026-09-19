@@ -260,6 +260,12 @@ func toDomainBill(row storage.Bill) domain.Bill {
 	if row.CardName != nil {
 		bill.CardName = *row.CardName
 	}
+	if row.CardLast4 != nil {
+		bill.CardLast4 = *row.CardLast4
+	}
+	if row.DueDay != nil {
+		bill.DueDay = *row.DueDay
+	}
 	if row.Aliases != "" {
 		bill.Aliases = strings.Split(row.Aliases, ",")
 	}

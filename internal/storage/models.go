@@ -29,7 +29,11 @@ type Bill struct {
 	// CardName is a pointer because the schema's CHECK compares it against NULL: an empty
 	// string would be a card name as far as SQLite is concerned, and the row would be
 	// rejected on every channel.
-	CardName     *string
+	CardName *string
+	// CardLast4 and DueDay are pointers for the same reason: NULL is "this bill has none",
+	// which an empty string or a zero day would quietly turn into a real value.
+	CardLast4    *string
+	DueDay       *int
 	DisplayOrder int
 	ArchivedAt   *time.Time
 	CreatedAt    time.Time

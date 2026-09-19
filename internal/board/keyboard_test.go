@@ -117,7 +117,7 @@ func TestMenuOffersEachActionOnlyWhenItWouldBeAccepted(t *testing.T) {
 
 func TestTransferPickerOffersEachAccountTheCycleUses(t *testing.T) {
 	snap := fourBills()
-	snap.Payables = append(snap.Payables, domain.Payable{ID: 15, SectionID: 2, BillName: "HSBC CC",
+	snap.Payables = append(snap.Payables, domain.Payable{ID: 15, SectionID: 2, BillName: "HSBC Mastercard CC",
 		Channel: domain.SheenaBPI, AmountCents: cents(500000), Status: domain.StatusDue})
 
 	rows := board.TransferPicker(snap)

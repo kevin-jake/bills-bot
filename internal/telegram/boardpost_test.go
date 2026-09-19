@@ -39,7 +39,7 @@ func TestNewMonthPostsAndPinsABoardWithEveryBillUnknown(t *testing.T) {
 	assert.Equal(t, tgbotapi.ModeHTML, posted.ParseMode)
 	assert.True(t, strings.HasPrefix(posted.Text, "📋 <b>Bills — September 2026</b>\n"+
 		"<i>0 of 16 paid · 16 no amount yet</i>"))
-	assert.Contains(t, posted.Text, "? BDO JCB CC · — · Sheena BDO")
+	assert.Contains(t, posted.Text, "? BDO JCB CC ••5994 · — · Sheena BDO · due 5")
 	assert.Contains(t, posted.Text, "? Internet PLDT · — · → RCBC Visa Airmiles")
 	assert.Equal(t, 16, strings.Count(posted.Text, "\n? "), "every bill opens unknown")
 	assert.Contains(t, posted.Text, "<b>To settle ₱0.00</b> <i>(15 unknown)</i>")
@@ -48,7 +48,7 @@ func TestNewMonthPostsAndPinsABoardWithEveryBillUnknown(t *testing.T) {
 	markup, ok := posted.ReplyMarkup.(tgbotapi.InlineKeyboardMarkup)
 	require.True(t, ok, "the board carries its buttons")
 	require.Len(t, markup.InlineKeyboard, 9, "16 bills two to a row, then refresh and transfer")
-	assert.Equal(t, "? UnionBank CC", markup.InlineKeyboard[0][0].Text)
+	assert.Equal(t, "? Unionbank Mastercard CC", markup.InlineKeyboard[0][0].Text)
 	last := markup.InlineKeyboard[8]
 	assert.Equal(t, "🔄 Refresh", last[0].Text)
 
