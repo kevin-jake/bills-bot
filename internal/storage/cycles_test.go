@@ -96,3 +96,57 @@ func TestSetBoardMessage(t *testing.T) {
 	assert.Equal(t, int64(-100123), *found.BoardChatID)
 	assert.Equal(t, 55, *found.BoardMessageID)
 }
+
+func TestUpdatePayableStateWritesNullsBack(t *testing.T) {
+	db := storagetest.Open(t)
+	cycle := createCycle(t, db, "2026-09", false)
+	bills, err := storage.ListActiveBills(db)
+	require.NoError(t, err)
+	p := storage.Payable{CycleID: cycle.ID, BillID: bills[0].ID, Status: "due", Channel: bills[0].Channel}
+	require.NoError(t, storage.CreatePayable(db, &p))
+
+	zero, paidBy, paidAt := int64(0), int64(0), time.Now().UTC()
+	p.AmountCents, p.Status, p.PaidBy, p.PaidAt = &zero, "paid", &paidBy, &paidAt
+	require.NoError(t, storage.UpdatePayableState(db, &p))
+
+	found, err := storage.FindPayableLine(db, p.ID)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, "UnionBank CC", found.BillName)
+	assert.Equal(t, "paid", found.Status)
+	require.NotNil(t, found.AmountCents)
+	assert.Equal(t, int64(0), *found.AmountCents, "zero is stored as zero, not as unknown")
+	require.NotNil(t, found.PaidBy)
+
+	amount := int64(249900)
+	p.AmountCents, p.Status, p.PaidBy, p.PaidAt = &amount, "due", nil, nil
+	require.NoError(t, storage.UpdatePayableState(db, &p))
+
+	found, err = storage.FindPayableLine(db, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "due", found.Status)
+	assert.Equal(t, int64(249900), *found.AmountCents)
+	assert.Nil(t, found.PaidBy, "clearing who paid writes NULL")
+	assert.Nil(t, found.PaidAt)
+}
+
+func TestFindPayableLineAndTransferReturnNilWhenMissing(t *testing.T) {
+	db := storagetest.Open(t)
+	cycle := createCycle(t, db, "2026-09", false)
+
+	line, err := storage.FindPayableLine(db, 12345)
+	require.NoError(t, err)
+	assert.Nil(t, line)
+
+	transfer, err := storage.FindTransfer(db, cycle.ID, "sheena_bpi")
+	require.NoError(t, err)
+	assert.Nil(t, transfer)
+
+	require.NoError(t, db.Create(&storage.Transfer{
+		CycleID: cycle.ID, Channel: "sheena_bpi", SentCents: 100, SentAt: time.Now().UTC(), SentBy: 111,
+	}).Error)
+	transfer, err = storage.FindTransfer(db, cycle.ID, "sheena_bpi")
+	require.NoError(t, err)
+	require.NotNil(t, transfer)
+	assert.Equal(t, int64(100), transfer.SentCents)
+}

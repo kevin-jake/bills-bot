@@ -231,7 +231,7 @@ func TestButtonsNotBuiltYetAreStillAnswered(t *testing.T) {
 	bot, sender := newTestBot(t)
 	say(bot, "/newmonth")
 
-	tap(bot, groupChatID, kevinID, "b:1")
+	tap(bot, groupChatID, kevinID, "t:1")
 
 	answers := requestsOf[tgbotapi.CallbackConfig](sender)
 	require.Len(t, answers, 1)

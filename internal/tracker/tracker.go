@@ -200,11 +200,12 @@ func (t *Tracker) AddBill(actor Actor, spec BillSpec) (domain.Bill, error) {
 
 // event is the part of an audit row a use case has to decide; the rest is filled in below.
 type event struct {
-	before  any
-	after   any
-	cycleID *int64
-	billID  *int64
-	note    string
+	before    any
+	after     any
+	cycleID   *int64
+	billID    *int64
+	payableID *int64
+	note      string
 }
 
 // appendEvent writes the audit row for a mutation. before and after are stored as JSON so
@@ -217,6 +218,7 @@ func appendEvent(tx *gorm.DB, actor Actor, action string, e event) error {
 		Action:          action,
 		CycleID:         e.cycleID,
 		BillID:          e.billID,
+		PayableID:       e.payableID,
 		BeforeJSON:      encodeJSON(e.before),
 		AfterJSON:       encodeJSON(e.after),
 	}

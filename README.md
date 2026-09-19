@@ -8,9 +8,18 @@ surprising are in [docs/adr](./docs/adr).
 ## Status
 
 The standing bill list and the monthly Board work. A month can be opened, which copies every bill
-onto a pinned Board with its amount unknown. Amounts cannot be entered yet, nothing can be marked
-paid, and there is no scheduler and no reporting: the Board's bill buttons answer "does not work
-yet", and only 🔄 Refresh does anything.
+onto a pinned Board with its amount unknown, and amounts can be entered from the Board. Nothing can
+be marked paid by hand yet, Transfers cannot be recorded, and there is no scheduler and no
+reporting: 💸 Transfer answers "does not work yet".
+
+Tapping a bill on the Board swaps the Board's buttons for that bill's menu. **💰 Set amount** asks
+whoever tapped for the figure, mentioning them with a reply box that opens only for them; their
+next message is the answer. `2499`, `2,499.50`, `₱2499` and `php 2499` are all understood. `0`
+means nothing is due: the bill is ticked off and struck through at once. Something that is not an
+amount is refused and the question stays open. A question lasts ten minutes, is replaced by a
+newer one from the same person, and can be withdrawn with `/cancel`. Once answered, the question
+is edited into a record of who entered what, and the Board is edited in place. Every amount set
+leaves a `payable.set_amount` event holding the bill's state before and after.
 
 Working today:
 
@@ -22,6 +31,7 @@ Working today:
 | `/bills` | Prints the standing list, grouped by section, with how each bill is paid |
 | `/bills add <name> \| <section> \| <channel> [\| <card>]` | Adds a bill to the end of its section |
 | `/bills section <name>` | Adds a section to the end of the display order |
+| `/cancel` | Withdraws the question the bot is waiting for you to answer |
 
 Channels are written as a person would say them: `kevin`, `sheena bdo`, `sheena bpi`,
 `sheena psbank`, `card`. Only a bill on `card` names the card it lands on, and every other
@@ -56,6 +66,32 @@ The chat id is negative, and a supergroup's looks like `-1001234567890`.
 
 Set `SCHEDULER_ENABLED=false` while developing, so the bot does not open cycles or post
 reminders against your real group.
+
+### With Docker
+
+`docker-compose.local.yml` builds the image from this checkout rather than pulling it from
+Docker Hub, and reads the same `.env`.
+
+```sh
+docker compose -f docker-compose.local.yml up --build
+```
+
+Stop it with Ctrl+C. The database lives in `data-docker/`, kept apart from the `data/` folder
+that `go run` uses, because the container writes it as root. To wipe it and start fresh:
+
+```sh
+docker compose -f docker-compose.local.yml down
+sudo rm -rf data-docker
+```
+
+The compose file overrides two values from `.env`. It pins `SQLITE_PATH` to `/data/bills.db`,
+since the `go run` path would put the database outside the mounted volume, where it is lost when
+the container is removed. It also forces the scheduler off.
+
+This uses your real bot token. Telegram delivers each update to only one poller, so do not run
+it alongside `go run` or the deployed bot.
+
+To use the Board commands, the bot must be a group admin with the Pin messages permission.
 
 ## Tests
 

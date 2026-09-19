@@ -47,6 +47,8 @@ func TestCallbackRoundTrips(t *testing.T) {
 		{Kind: board.KindMenu, ID: 42},
 		{Kind: board.KindRefresh, ID: 1},
 		{Kind: board.KindTransfer, ID: 99999},
+		{Kind: board.KindSetAmount, ID: 7},
+		{Kind: board.KindBack, ID: 3},
 	} {
 		decoded, err := board.DecodeCallback(cb.Encode())
 
@@ -62,4 +64,18 @@ func TestDecodeCallbackRefusesWhatTheBotDidNotWrite(t *testing.T) {
 
 		assert.ErrorIs(t, err, board.ErrCallbackInvalid, "data %q", data)
 	}
+}
+
+func TestMenuOffersToSetOrChangeTheAmountAndToGoBack(t *testing.T) {
+	unknown := domain.Payable{ID: 42, CycleID: 3, BillName: "Water"}
+	amount := int64(0)
+	known := domain.Payable{ID: 42, CycleID: 3, BillName: "Water", AmountCents: &amount}
+
+	rows := board.Menu(unknown)
+
+	assert.Equal(t, [][]board.Button{
+		{{Text: "💰 Set amount", Data: "a:42"}},
+		{{Text: "« Back", Data: "k:3"}},
+	}, rows)
+	assert.Equal(t, "💰 Change amount", board.Menu(known)[0][0].Text)
 }

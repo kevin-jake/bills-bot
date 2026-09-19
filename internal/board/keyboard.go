@@ -19,6 +19,10 @@ const (
 	KindRefresh Kind = "r"
 	// KindTransfer picks which of Sheena's accounts a Transfer went into. Its id is the Cycle's.
 	KindTransfer Kind = "t"
+	// KindSetAmount asks for a Payable's amount. Its id is the Payable's.
+	KindSetAmount Kind = "a"
+	// KindBack closes a Payable's menu and puts the Board's buttons back. Its id is the Cycle's.
+	KindBack Kind = "k"
 )
 
 // ErrCallbackInvalid is returned for callback data the bot did not write, or wrote under
@@ -43,7 +47,7 @@ func DecodeCallback(data string) (Callback, error) {
 		return Callback{}, ErrCallbackInvalid
 	}
 	switch Kind(kind) {
-	case KindMenu, KindRefresh, KindTransfer:
+	case KindMenu, KindRefresh, KindTransfer, KindSetAmount, KindBack:
 	default:
 		return Callback{}, ErrCallbackInvalid
 	}
@@ -92,6 +96,19 @@ func Keyboard(snap domain.Snapshot) [][]Button {
 		{Text: "🔄 Refresh", Data: Callback{Kind: KindRefresh, ID: snap.Cycle.ID}.Encode()},
 		{Text: "💸 Transfer", Data: Callback{Kind: KindTransfer, ID: snap.Cycle.ID}.Encode()},
 	})
+}
+
+// Menu returns the buttons for one Payable, shown in place of the Board's own until someone
+// picks an action or goes back.
+func Menu(p domain.Payable) [][]Button {
+	setAmount := "💰 Set amount"
+	if p.AmountKnown() {
+		setAmount = "💰 Change amount"
+	}
+	return [][]Button{
+		{{Text: setAmount, Data: Callback{Kind: KindSetAmount, ID: p.ID}.Encode()}},
+		{{Text: "« Back", Data: Callback{Kind: KindBack, ID: p.CycleID}.Encode()}},
+	}
 }
 
 // clip shortens a name to max runes, marking the cut.

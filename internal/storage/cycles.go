@@ -121,3 +121,53 @@ func ListTransfers(db *gorm.DB, cycleID int64) ([]Transfer, error) {
 	}
 	return transfers, nil
 }
+
+// FindPayableLine returns the Payable with id together with its Bill's name and Section, or
+// nil when there is none.
+func FindPayableLine(db *gorm.DB, id int64) (*PayableLine, error) {
+	var found []PayableLine
+	err := db.Raw(`
+		SELECT payables.*, bills.name AS bill_name, bills.section_id AS section_id
+		FROM payables
+		JOIN bills ON bills.id = payables.bill_id
+		WHERE payables.id = ?`, id).Scan(&found).Error
+	if err != nil {
+		return nil, fmt.Errorf("find payable %d: %w", id, err)
+	}
+	if len(found) == 0 {
+		return nil, nil
+	}
+	return &found[0], nil
+}
+
+// UpdatePayableState writes a Payable's amount and where it stands. The Bill, Cycle and
+// channel snapshot are never rewritten here.
+func UpdatePayableState(db *gorm.DB, p *Payable) error {
+	p.UpdatedAt = time.Now().UTC()
+	// A map rather than the struct, so that nil pointers are written as NULL instead of
+	// being skipped as zero values.
+	err := db.Model(&Payable{}).Where("id = ?", p.ID).Updates(map[string]any{
+		"amount_cents": p.AmountCents,
+		"status":       p.Status,
+		"paid_at":      p.PaidAt,
+		"paid_by":      p.PaidBy,
+		"updated_at":   p.UpdatedAt,
+	}).Error
+	if err != nil {
+		return fmt.Errorf("update payable %d: %w", p.ID, err)
+	}
+	return nil
+}
+
+// FindTransfer returns the Transfer into channel for a Cycle, or nil when none was sent.
+func FindTransfer(db *gorm.DB, cycleID int64, channel string) (*Transfer, error) {
+	var found []Transfer
+	err := db.Where("cycle_id = ? AND channel = ?", cycleID, channel).Limit(1).Find(&found).Error
+	if err != nil {
+		return nil, fmt.Errorf("find %s transfer for cycle %d: %w", channel, cycleID, err)
+	}
+	if len(found) == 0 {
+		return nil, nil
+	}
+	return &found[0], nil
+}

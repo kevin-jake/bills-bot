@@ -191,7 +191,11 @@ func isNotModified(err error) bool {
 
 // keyboardMarkup converts the Board's buttons into Telegram's type, or nil for none.
 func keyboardMarkup(snap domain.Snapshot) *tgbotapi.InlineKeyboardMarkup {
-	rows := board.Keyboard(snap)
+	return markupOf(board.Keyboard(snap))
+}
+
+// markupOf converts rows of buttons into Telegram's type, or nil for none.
+func markupOf(rows [][]board.Button) *tgbotapi.InlineKeyboardMarkup {
 	if len(rows) == 0 {
 		return nil
 	}

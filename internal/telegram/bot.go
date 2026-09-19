@@ -6,6 +6,7 @@ package telegram
 import (
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -26,8 +27,13 @@ type Bot struct {
 	sender  messageSender
 	cfg     *config.Config
 	tracker *tracker.Tracker
-	// now is the clock /newmonth reads the current month from, replaceable in tests.
+	// now is the clock /newmonth reads the current month from and questions expire by,
+	// replaceable in tests.
 	now func() time.Time
+
+	// mu guards pending, which the scheduler will sweep from its own goroutine.
+	mu      sync.Mutex
+	pending map[pendingKey]*pending
 }
 
 // New connects to Telegram and returns a ready bot.
@@ -36,12 +42,14 @@ func New(cfg *config.Config, tracker *tracker.Tracker) (*Bot, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Bot{api: api, sender: api, cfg: cfg, tracker: tracker, now: time.Now}, nil
+	return &Bot{api: api, sender: api, cfg: cfg, tracker: tracker, now: time.Now,
+		pending: map[pendingKey]*pending{}}, nil
 }
 
 // newBotForTest builds a Bot with no live Telegram connection.
 func newBotForTest(sender messageSender, cfg *config.Config, tracker *tracker.Tracker) *Bot {
-	return &Bot{sender: sender, cfg: cfg, tracker: tracker, now: time.Now}
+	return &Bot{sender: sender, cfg: cfg, tracker: tracker, now: time.Now,
+		pending: map[pendingKey]*pending{}}
 }
 
 const startText = "📋 <b>Bills</b>\n\n" +
@@ -49,6 +57,7 @@ const startText = "📋 <b>Bills</b>\n\n" +
 	"sticky note: one glance to see what is left, one tap to strike something through.\n\n" +
 	"<code>/newmonth</code> opens this month with every amount blank and pins its board.\n" +
 	"<code>/board</code> posts the board again when the pinned one has scrolled away.\n" +
+	"Tap a bill on the board to enter its amount; 0 means nothing is due and ticks it off.\n" +
 	"<code>/bills</code> shows the standing list — what we pay every month, and who pays it."
 
 // Start registers the command list and consumes updates until the channel closes.
@@ -58,6 +67,7 @@ func (b *Bot) Start() {
 		{Command: "board", Description: "Post this month's board again"},
 		{Command: "newmonth", Description: "Open a month and pin its board"},
 		{Command: "bills", Description: "The standing bill list"},
+		{Command: "cancel", Description: "Stop answering the question I asked you"},
 	}
 	if _, err := b.sender.Request(tgbotapi.NewSetMyCommands(commands...)); err != nil {
 		log.Printf("failed to register bot commands: %v", err)
@@ -96,11 +106,14 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 		return
 	}
 
+	// A command always runs as a command, even mid-question, so /cancel and /board still
+	// work while the bot is waiting for an amount.
 	command, args := parseCommand(message.Text)
-	if command == "" {
+	if command != "" {
+		b.handleCommand(message, command, args)
 		return
 	}
-	b.handleCommand(message, command, args)
+	b.handlePending(message)
 }
 
 // handleForeignChat answers /start in a private chat so a confused human gets an
@@ -124,6 +137,8 @@ func (b *Bot) handleCommand(message *tgbotapi.Message, command string, args []st
 		b.handleNewMonth(message, args)
 	case "bills":
 		b.handleBills(message, args)
+	case "cancel":
+		b.handleCancel(message)
 	default:
 		b.send(message.Chat.ID, "I do not know that command. Try /start, /board or /bills.")
 	}
