@@ -53,6 +53,10 @@ func TestCallbackRoundTrips(t *testing.T) {
 		{Kind: board.KindUndo, ID: 9},
 		{Kind: board.KindTransferChannel, ID: 7, Arg: "psb"},
 		{Kind: board.KindTransferUndo, ID: 2},
+		{Kind: board.KindMatch, ID: 42, Arg: "s:10343123"},
+		{Kind: board.KindMatch, ID: 42, Arg: "p:-"},
+		{Kind: board.KindMatch, ID: 42, Arg: "u:-"},
+		{Kind: board.KindCancel},
 	} {
 		decoded, err := board.DecodeCallback(cb.Encode())
 
@@ -64,10 +68,32 @@ func TestCallbackRoundTrips(t *testing.T) {
 
 func TestDecodeCallbackRefusesWhatTheBotDidNotWrite(t *testing.T) {
 	for _, data := range []string{"", "b", "b:", "b:x", "b:-1", "b:0", "z:1", "refresh",
-		"b:1:bdo", "tc:1", "tc:1:gcash", "tc:x:bdo", "tu:1:bdo"} {
+		"b:1:bdo", "tc:1", "tc:1:gcash", "tc:x:bdo", "tu:1:bdo",
+		"m:1", "m:1:s", "m:1:s:-", "m:1:u:100", "m:1:z:-", "m:1:s:x", "m:1:s:-5", "x:1"} {
 		_, err := board.DecodeCallback(data)
 
 		assert.ErrorIs(t, err, board.ErrCallbackInvalid, "data %q", data)
+	}
+}
+
+func TestMatchArgRoundTrips(t *testing.T) {
+	amount := int64(249900)
+	for _, tt := range []struct {
+		action board.MatchAction
+		cents  *int64
+		arg    string
+	}{
+		{board.MatchSetAmount, &amount, "s:249900"},
+		{board.MatchPaid, &amount, "p:249900"},
+		{board.MatchPaid, nil, "p:-"},
+		{board.MatchUndo, nil, "u:-"},
+	} {
+		assert.Equal(t, tt.arg, board.MatchArg(tt.action, tt.cents))
+
+		action, cents, err := board.ParseMatchArg(tt.arg)
+		require.NoError(t, err)
+		assert.Equal(t, tt.action, action)
+		assert.Equal(t, tt.cents, cents)
 	}
 }
 

@@ -32,7 +32,55 @@ const (
 	KindTransferChannel Kind = "tc"
 	// KindTransferUndo removes a recorded Transfer. Its id is the Transfer's.
 	KindTransferUndo Kind = "tu"
+	// KindMatch answers "Which one?" after a typed shortcut named several bills. Its id is
+	// the chosen Payable's and its Arg says what to do, as MatchArg writes it.
+	KindMatch Kind = "m"
+	// KindCancel dismisses the message it is on. It carries no id and encodes as "x".
+	KindCancel Kind = "x"
 )
+
+// MatchAction is what a typed shortcut asked to do, carried through a "Which one?" button.
+type MatchAction string
+
+const (
+	MatchSetAmount MatchAction = "s"
+	MatchPaid      MatchAction = "p"
+	MatchUndo      MatchAction = "u"
+)
+
+// MatchArg writes a KindMatch button's Arg: the action, then the amount in centavos or "-"
+// for none, e.g. "s:249900" or "p:-".
+func MatchArg(action MatchAction, cents *int64) string {
+	amount := "-"
+	if cents != nil {
+		amount = strconv.FormatInt(*cents, 10)
+	}
+	return string(action) + ":" + amount
+}
+
+// ParseMatchArg reads an Arg written by MatchArg.
+func ParseMatchArg(arg string) (MatchAction, *int64, error) {
+	action, amount, ok := strings.Cut(arg, ":")
+	switch MatchAction(action) {
+	case MatchSetAmount, MatchPaid, MatchUndo:
+	default:
+		return "", nil, ErrCallbackInvalid
+	}
+	if !ok {
+		return "", nil, ErrCallbackInvalid
+	}
+	if amount == "-" {
+		if MatchAction(action) == MatchSetAmount {
+			return "", nil, ErrCallbackInvalid
+		}
+		return MatchAction(action), nil, nil
+	}
+	cents, err := strconv.ParseInt(amount, 10, 64)
+	if err != nil || cents < 0 || MatchAction(action) == MatchUndo {
+		return "", nil, ErrCallbackInvalid
+	}
+	return MatchAction(action), &cents, nil
+}
 
 // ErrCallbackInvalid is returned for callback data the bot did not write, or wrote under
 // an older layout.
@@ -42,12 +90,16 @@ var ErrCallbackInvalid = errors.New("unrecognised button")
 type Callback struct {
 	Kind Kind
 	ID   int64
-	// Arg is set only for KindTransferChannel, which also has to say which account.
+	// Arg is set only for KindTransferChannel, which also has to say which account, and
+	// for KindMatch, which says what to do.
 	Arg string
 }
 
-// Encode writes the callback as button data, e.g. "b:42" or "tc:7:bdo".
+// Encode writes the callback as button data, e.g. "b:42", "tc:7:bdo" or "m:42:s:249900".
 func (c Callback) Encode() string {
+	if c.Kind == KindCancel {
+		return string(KindCancel)
+	}
 	data := string(c.Kind) + ":" + strconv.FormatInt(c.ID, 10)
 	if c.Arg != "" {
 		data += ":" + c.Arg
@@ -57,6 +109,9 @@ func (c Callback) Encode() string {
 
 // DecodeCallback reads button data written by Encode.
 func DecodeCallback(data string) (Callback, error) {
+	if data == string(KindCancel) {
+		return Callback{Kind: KindCancel}, nil
+	}
 	parts := strings.Split(data, ":")
 	if len(parts) < 2 {
 		return Callback{}, ErrCallbackInvalid
@@ -75,6 +130,13 @@ func DecodeCallback(data string) (Callback, error) {
 		if _, ok := ChannelFromCode(parts[2]); !ok {
 			return Callback{}, ErrCallbackInvalid
 		}
+	case KindMatch:
+		if len(parts) != 4 {
+			return Callback{}, ErrCallbackInvalid
+		}
+		if _, _, err := ParseMatchArg(parts[2] + ":" + parts[3]); err != nil {
+			return Callback{}, ErrCallbackInvalid
+		}
 	default:
 		return Callback{}, ErrCallbackInvalid
 	}
@@ -83,8 +145,8 @@ func DecodeCallback(data string) (Callback, error) {
 		return Callback{}, ErrCallbackInvalid
 	}
 	callback := Callback{Kind: kind, ID: id}
-	if len(parts) == 3 {
-		callback.Arg = parts[2]
+	if len(parts) > 2 {
+		callback.Arg = strings.Join(parts[2:], ":")
 	}
 	return callback, nil
 }

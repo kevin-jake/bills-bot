@@ -61,7 +61,11 @@ const startText = "📋 <b>Bills</b>\n\n" +
 	"0 means nothing is due and ticks it off. Once everything is paid the month closes.\n" +
 	"<code>/transfer</code> records money sent into one of Sheena's accounts, which marks " +
 	"that account's bills ⏳ funded.\n" +
-	"<code>/bills</code> shows the standing list — what we pay every month, and who pays it."
+	"<code>/bills</code> shows the standing list — what we pay every month, and who pays it.\n\n" +
+	"You can also just type: <code>pldt 2499</code> or <code>PLDT = 2,499</code> enters an amount, " +
+	"<code>paid bpi cc</code> (or <code>paid bpi cc 5000</code>) marks it paid, and " +
+	"<code>undo pldt</code> takes back the last change. Add a month such as <code>aug</code> " +
+	"or <code>2026-08</code> at the end to reach an older one."
 
 // Start registers the command list and consumes updates until the channel closes.
 func (b *Bot) Start() {
@@ -117,7 +121,10 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 		b.handleCommand(message, command, args)
 		return
 	}
-	b.handlePending(message)
+	if b.handlePending(message) {
+		return
+	}
+	b.handleShortcut(message)
 }
 
 // handleForeignChat answers /start in a private chat so a confused human gets an

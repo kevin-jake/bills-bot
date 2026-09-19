@@ -66,6 +66,10 @@ func (b *Bot) handleCallback(query *tgbotapi.CallbackQuery) {
 		b.startTransfer(query, callback.ID, channel)
 	case board.KindTransferUndo:
 		b.undoTransfer(query, callback.ID)
+	case board.KindMatch:
+		b.resolveMatch(query, callback)
+	case board.KindCancel:
+		b.dismiss(query)
 	default:
 		b.answer(query.ID, "")
 	}
