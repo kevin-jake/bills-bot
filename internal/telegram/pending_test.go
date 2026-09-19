@@ -30,6 +30,7 @@ func openSeptember(t *testing.T, bot *Bot, billName string) domain.Payable {
 func reply(bot *Bot, userID int64, replyTo int, text string) {
 	msg := message(groupChatID, userID, "supergroup", text)
 	msg.From.FirstName = map[int64]string{kevinID: "Kevin", sheenaID: "Sheena"}[userID]
+	msg.MessageID = replyTo + 100
 	msg.ReplyToMessage = &tgbotapi.Message{MessageID: replyTo}
 	bot.handleMessage(msg)
 }
@@ -120,7 +121,10 @@ func TestReplyingWithAnAmountEditsTheBoardLine(t *testing.T) {
 
 	reply(bot, kevinID, prompt, "2,499")
 
-	assert.Len(t, sender.messages, sent, "the answer is shown by editing, not by a new message")
+	require.Len(t, sender.messages, sent+1, "the answer is confirmed with one reply")
+	confirmation := sender.messages[sent]
+	assert.Equal(t, "✓ <b>Internet PLDT</b> set to ₱2,499.00. — Kevin", confirmation.Text)
+	assert.Equal(t, prompt+100, confirmation.ReplyToMessageID, "it replies to the typed amount")
 	board := lastEdit(t, sender, 1)
 	assert.Contains(t, board.Text, "☐ Internet PLDT · ₱2,499.00 · → RCBC Visa Airmiles")
 	assert.Contains(t, board.Text, "15 no amount yet")

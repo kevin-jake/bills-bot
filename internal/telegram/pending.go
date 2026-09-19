@@ -163,12 +163,16 @@ func (b *Bot) answerAmount(message *tgbotapi.Message, key pendingKey, p *pending
 		return
 	}
 
-	b.closePrompt(key.chatID, p, amountSetText(change, message.From.FirstName))
+	// The question keeps the record, and a reply to the answer confirms it where the person
+	// who typed it is looking.
+	text := amountSetText(change, message.From.FirstName)
+	b.closePrompt(key.chatID, p, text)
+	b.replyHTML(message, text)
 	b.showChange(change)
 }
 
-// amountSetText is what a question becomes once it is answered, so the chat reads as a
-// record of who entered what.
+// amountSetText confirms an entered amount, so the chat reads as a record of who entered
+// what.
 func amountSetText(change tracker.Change, who string) string {
 	name := "<b>" + html.EscapeString(change.After.BillName) + "</b>"
 	amount := domain.FormatPesos(*change.After.AmountCents)
