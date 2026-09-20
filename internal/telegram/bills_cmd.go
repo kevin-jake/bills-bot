@@ -13,13 +13,27 @@ import (
 	"github.com/kevin-jake/bills-bot/internal/tracker"
 )
 
-// billsUsage is shown whenever the arguments do not parse. The pipes matter: Section and
-// Bill names contain spaces ("BDO Home Loan", "RCBC Visa Airmiles"), so splitting on them
-// would cut names in half.
-const billsUsage = "📋 <b>Bills</b>\n\n" +
-	"<code>/bills</code> — the standing list\n" +
+// billsHelp is the whole of what /bills can do. The pipes matter: Section and Bill names
+// contain spaces ("BDO Home Loan", "RCBC Visa Airmiles"), so splitting on them would cut
+// names in half. A bill is named the same loose way a typed shortcut names one, so
+// "bpi cc" is enough wherever <bill> appears.
+const billsHelp = "📋 <b>Bills</b>\n\n" +
+	"<code>/bills</code> — the standing list · <code>/bills archived</code> — what has left it\n\n" +
+	"<b>Adding</b>\n" +
 	"<code>/bills add &lt;name&gt; | &lt;section&gt; | &lt;channel&gt; [| &lt;card&gt;]</code>\n" +
 	"<code>/bills section &lt;name&gt;</code> — a new heading, at the end\n\n" +
+	"<b>Changing</b>\n" +
+	"<code>/bills rename &lt;bill&gt; | &lt;new name&gt;</code>\n" +
+	"<code>/bills alias &lt;bill&gt; | &lt;other name&gt;, &lt;…&gt;</code> — empty clears\n" +
+	"<code>/bills move &lt;bill&gt; | &lt;section&gt;</code>\n" +
+	"<code>/bills channel &lt;bill&gt; | &lt;channel&gt; [| &lt;card&gt;]</code>\n" +
+	"<code>/bills card &lt;bill&gt; | &lt;last 4 digits&gt;</code> — empty clears\n" +
+	"<code>/bills due &lt;bill&gt; | &lt;day of the month&gt;</code> — 0 clears\n" +
+	"<code>/bills order &lt;bill&gt; | up|down|top|bottom|&lt;n&gt;</code>\n" +
+	"<code>/bills order section &lt;name&gt; | up|down|&lt;n&gt;</code>\n\n" +
+	"<b>Leaving</b>\n" +
+	"<code>/bills archive &lt;bill&gt;</code> — off the list; paid months keep it\n" +
+	"<code>/bills restore &lt;bill&gt;</code> — back on the list\n\n" +
 	"Channels: <code>kevin</code>, <code>sheena bdo</code>, <code>sheena bpi</code>, " +
 	"<code>sheena psbank</code>, <code>card</code>\n" +
 	"A bill on <code>card</code> names the card it lands on; no other channel may.\n\n" +
@@ -38,8 +52,28 @@ func (b *Bot) handleBills(message *tgbotapi.Message, args []string) {
 		b.addBill(message, args[1:])
 	case "section":
 		b.addSection(message, args[1:])
+	case "archived":
+		b.sendArchivedList(message.Chat.ID)
+	case "rename":
+		b.renameBill(message, args[1:])
+	case "alias":
+		b.aliasBill(message, args[1:])
+	case "move":
+		b.moveBill(message, args[1:])
+	case "channel":
+		b.rechannelBill(message, args[1:])
+	case "card":
+		b.recardBill(message, args[1:])
+	case "due":
+		b.redueBill(message, args[1:])
+	case "order":
+		b.reorder(message, args[1:])
+	case "archive":
+		b.askArchiveBill(message, args[1:])
+	case "restore":
+		b.restoreBill(message, args[1:])
 	default:
-		b.sendHTML(message.Chat.ID, billsUsage)
+		b.sendHTML(message.Chat.ID, billsHelp)
 	}
 }
 
@@ -56,7 +90,7 @@ func (b *Bot) sendBillList(chatID int64) {
 func (b *Bot) addSection(message *tgbotapi.Message, args []string) {
 	name := strings.TrimSpace(strings.Join(args, " "))
 	if name == "" {
-		b.sendHTML(message.Chat.ID, billsUsage)
+		b.sendHTML(message.Chat.ID, billsHelp)
 		return
 	}
 
@@ -74,7 +108,8 @@ func (b *Bot) addSection(message *tgbotapi.Message, args []string) {
 func (b *Bot) addBill(message *tgbotapi.Message, args []string) {
 	spec, err := parseBillSpec(strings.Join(args, " "))
 	if err != nil {
-		b.sendHTML(message.Chat.ID, html.EscapeString(err.Error())+"\n\n"+billsUsage)
+		b.sendHTML(message.Chat.ID, "⚠️ "+html.EscapeString(capitalise(err.Error()))+
+			"\n\n"+billsHelp)
 		return
 	}
 
@@ -113,20 +148,32 @@ func parseBillSpec(raw string) (tracker.BillSpec, error) {
 	return spec, nil
 }
 
-// refuse turns a rules error into a sentence for whoever typed the command. Anything that
-// is not a rules error is a fault of the bot's, so it is logged rather than shown.
+// refuse tells whoever typed the command why nothing happened.
 func (b *Bot) refuse(chatID int64, err error) {
-	for _, known := range []error{
-		domain.ErrNameRequired, domain.ErrCardNameRequired, domain.ErrCardNameUnwanted,
-		tracker.ErrSectionUnknown, tracker.ErrSectionExists, tracker.ErrBillExists,
-	} {
+	b.sendHTML(chatID, refusalText(err, "Nothing was changed."))
+}
+
+// refusalText turns a rules error into a sentence for whoever typed the command, with
+// tail saying what was left alone. Anything that is not a rules error is a fault of the
+// bot's, so it is logged rather than shown.
+func refusalText(err error, tail string) string {
+	for _, known := range refusable {
 		if errors.Is(err, known) {
-			b.sendHTML(chatID, "⚠️ "+html.EscapeString(capitalise(err.Error())))
-			return
+			return "⚠️ " + html.EscapeString(capitalise(err.Error())) + ". " + tail
 		}
 	}
-	log.Printf("bills command failed: %v", err)
-	b.send(chatID, "Something went wrong writing that down. Nothing was changed.")
+	log.Printf("a change to the standing list failed: %v", err)
+	return "Something went wrong writing that down. " + tail
+}
+
+// refusable are the errors a person can provoke by typing something the rules refuse.
+// Each is worded to be read as a sentence by whoever typed the command; anything not on
+// this list is a fault of the bot's.
+var refusable = []error{
+	domain.ErrNameRequired, domain.ErrCardNameRequired, domain.ErrCardNameUnwanted,
+	domain.ErrLast4Invalid, domain.ErrDueDayInvalid, domain.ErrPlacementInvalid,
+	tracker.ErrSectionUnknown, tracker.ErrSectionExists, tracker.ErrBillExists,
+	tracker.ErrBillUnknown, tracker.ErrBillArchived, tracker.ErrBillActive,
 }
 
 // capitalise raises the first letter, because a wrapped rules error is read as a sentence
@@ -144,7 +191,7 @@ func capitalise(s string) string {
 // per Section, then each Bill with how it is paid.
 func renderBillList(list []tracker.SectionBills) string {
 	if len(list) == 0 {
-		return "📋 <b>Bills</b>\n\n<i>The standing list is empty.</i>\n\n" + billsUsage
+		return "📋 <b>Bills</b>\n\n<i>The standing list is empty.</i>\n\n" + billsHelp
 	}
 
 	bills := 0
@@ -159,15 +206,25 @@ func renderBillList(list []tracker.SectionBills) string {
 	for _, section := range list {
 		fmt.Fprintf(&out, "\n<b>%s</b>\n", html.EscapeString(section.Section.Name))
 		for _, bill := range section.Bills {
-			line := "• " + html.EscapeString(bill.DisplayName()) + " · " +
-				html.EscapeString(bill.ChannelLabel())
-			if due := bill.DueLabel(); due != "" {
-				line += " · " + due
-			}
-			out.WriteString(line + "\n")
+			out.WriteString(billLine(bill) + "\n")
 		}
 	}
-	return strings.TrimRight(out.String(), "\n")
+	return strings.TrimRight(out.String(), "\n") +
+		"\n\n<i><code>/bills help</code> — to add, rename, move or archive one</i>"
+}
+
+// billLine is one Bill as the standing list shows it: what it is called, the other names
+// it answers to, how it is paid and when it falls due.
+func billLine(bill domain.Bill) string {
+	line := "• " + html.EscapeString(bill.DisplayName())
+	if len(bill.Aliases) > 0 {
+		line += " <i>(" + html.EscapeString(strings.Join(bill.Aliases, ", ")) + ")</i>"
+	}
+	line += " · " + html.EscapeString(bill.ChannelLabel())
+	if due := bill.DueLabel(); due != "" {
+		line += " · " + due
+	}
+	return line
 }
 
 func plural(n int, noun string) string {

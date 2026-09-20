@@ -86,6 +86,13 @@ func CreatePayable(db *gorm.DB, p *Payable) error {
 	return nil
 }
 
+// onTheBoard is what a Payable has to be to count as a line of its Cycle. An archived
+// Bill's unpaid lines are withdrawn rather than deleted: the row is what the audit trail
+// and Undo hang off, and a restore that brings the figure back with it is kinder than one
+// that asks for it again. A month the Bill was actually paid in still counts it, because
+// that is what the month came to.
+const onTheBoard = `(bills.archived_at IS NULL OR payables.status = 'paid')`
+
 // PayableLine is a Payable together with the parts of its Bill the Board shows. The name
 // and Section are read live from the Bill, so a rename shows on past months too; the
 // channel is the Payable's own snapshot, so a change of channel does not.
@@ -109,7 +116,7 @@ func ListPayableLines(db *gorm.DB, cycleID int64) ([]PayableLine, error) {
 		FROM payables
 		JOIN bills    ON bills.id = payables.bill_id
 		JOIN sections ON sections.id = bills.section_id
-		WHERE payables.cycle_id = ?
+		WHERE payables.cycle_id = ? AND `+onTheBoard+`
 		ORDER BY sections.display_order, sections.id, bills.display_order, bills.id`,
 		cycleID).Scan(&lines).Error
 	if err != nil {
@@ -136,7 +143,7 @@ func FindPayableLine(db *gorm.DB, id int64) (*PayableLine, error) {
 		       bills.card_last4 AS card_last4, bills.due_day AS due_day
 		FROM payables
 		JOIN bills ON bills.id = payables.bill_id
-		WHERE payables.id = ?`, id).Scan(&found).Error
+		WHERE payables.id = ? AND `+onTheBoard, id).Scan(&found).Error
 	if err != nil {
 		return nil, fmt.Errorf("find payable %d: %w", id, err)
 	}

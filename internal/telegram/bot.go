@@ -83,7 +83,8 @@ const startText = "📋 <b>Bills</b>\n\n" +
 	"0 means nothing is due and ticks it off. Once everything is paid the month closes.\n" +
 	"<code>/transfer</code> records money sent into one of Sheena's accounts, which marks " +
 	"that account's bills ⏳ funded.\n" +
-	"<code>/bills</code> shows the standing list — what we pay every month, and who pays it.\n" +
+	"<code>/bills</code> shows the standing list — what we pay every month, and who pays it; " +
+	"<code>/bills help</code> adds, renames, moves and archives one.\n" +
 	"<code>/summary</code> tots a month up by section and by account; <code>/history pldt</code> " +
 	"shows what one bill has come to over the past year; <code>/export</code> sends the lot as a " +
 	"CSV file.\n\n" +

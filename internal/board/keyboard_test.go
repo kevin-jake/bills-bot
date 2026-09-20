@@ -131,3 +131,24 @@ func TestTransferPickerOffersEachAccountTheCycleUses(t *testing.T) {
 	assert.Equal(t, "💸 Sheena BDO · need ₱16,639.31?", board.TransferPicker(snap)[0][0].Text,
 		"a need that is not final is marked")
 }
+
+func TestBillCallbackCarriesWhichChangeToConfirm(t *testing.T) {
+	data := board.Callback{Kind: board.KindBill, ID: 42, Arg: string(board.BillArchive)}.Encode()
+
+	assert.Equal(t, "bl:42:arc", data)
+	assert.LessOrEqual(t, len(data), 64, "Telegram allows a button 64 bytes")
+
+	decoded, err := board.DecodeCallback(data)
+	require.NoError(t, err)
+	assert.Equal(t, board.KindBill, decoded.Kind)
+	assert.EqualValues(t, 42, decoded.ID)
+	assert.Equal(t, string(board.BillArchive), decoded.Arg)
+}
+
+func TestBillCallbackRefusesAChangeTheBotDoesNotWrite(t *testing.T) {
+	for _, data := range []string{"bl:42", "bl:42:del", "bl:0:arc", "bl:x:arc", "bl:42:arc:1"} {
+		_, err := board.DecodeCallback(data)
+
+		assert.ErrorIs(t, err, board.ErrCallbackInvalid, "%q is not a button the bot wrote", data)
+	}
+}

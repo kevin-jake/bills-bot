@@ -66,6 +66,9 @@ func (b *Bot) handleCallback(query *tgbotapi.CallbackQuery) {
 		b.startTransfer(query, callback.ID, channel)
 	case board.KindTransferUndo:
 		b.undoTransfer(query, callback.ID)
+	case board.KindBill:
+		// DecodeCallback has already refused any action but the one the bot writes.
+		b.confirmArchive(query, callback.ID)
 	case board.KindMatch:
 		b.resolveMatch(query, callback)
 	case board.KindCancel:

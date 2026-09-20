@@ -35,6 +35,9 @@ const (
 	// KindMatch answers "Which one?" after a typed shortcut named several bills. Its id is
 	// the chosen Payable's and its Arg says what to do, as MatchArg writes it.
 	KindMatch Kind = "m"
+	// KindBill confirms a change to the standing list that is worth asking about twice.
+	// Its id is the Bill's and its Arg says which change, as BillAction writes it.
+	KindBill Kind = "bl"
 	// KindCancel dismisses the message it is on. It carries no id and encodes as "x".
 	KindCancel Kind = "x"
 )
@@ -47,6 +50,17 @@ const (
 	MatchPaid      MatchAction = "p"
 	MatchUndo      MatchAction = "u"
 )
+
+// BillAction is which change to the standing list a KindBill button confirms. Only the
+// changes that cannot simply be done again are asked about, which is archiving: it deletes
+// the Bill's unpaid lines, and restoring brings them back blank rather than as they were.
+type BillAction string
+
+// BillArchive takes a Bill off the standing list.
+const BillArchive BillAction = "arc"
+
+// ValidBillAction reports whether s is a BillAction the bot writes.
+func ValidBillAction(s string) bool { return BillAction(s) == BillArchive }
 
 // MatchArg writes a KindMatch button's Arg: the action, then the amount in centavos or "-"
 // for none, e.g. "s:249900" or "p:-".
@@ -128,6 +142,10 @@ func DecodeCallback(data string) (Callback, error) {
 			return Callback{}, ErrCallbackInvalid
 		}
 		if _, ok := ChannelFromCode(parts[2]); !ok {
+			return Callback{}, ErrCallbackInvalid
+		}
+	case KindBill:
+		if len(parts) != 3 || !ValidBillAction(parts[2]) {
 			return Callback{}, ErrCallbackInvalid
 		}
 	case KindMatch:

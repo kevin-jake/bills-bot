@@ -3,6 +3,7 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -125,6 +126,27 @@ func ValidateBill(name string, channel Channel, cardName string) error {
 	}
 	return nil
 }
+
+// ParseAliases reads the other names a Bill answers to from a comma-separated list, the
+// way a person types them. Blanks and repeats are dropped, and an empty list clears the
+// aliases, which is how an alias is taken back.
+func ParseAliases(s string) []string {
+	var aliases []string
+	for _, part := range strings.Split(s, ",") {
+		alias := strings.Join(strings.Fields(part), " ")
+		if alias == "" || slices.ContainsFunc(aliases, func(seen string) bool {
+			return strings.EqualFold(seen, alias)
+		}) {
+			continue
+		}
+		aliases = append(aliases, alias)
+	}
+	return aliases
+}
+
+// JoinAliases writes aliases the way the bills table holds them: one flat list, because
+// the matcher reads all of a Bill's names at once and nothing queries one alias on its own.
+func JoinAliases(aliases []string) string { return strings.Join(aliases, ",") }
 
 // ValidateSection checks a proposed Section name.
 func ValidateSection(name string) error {

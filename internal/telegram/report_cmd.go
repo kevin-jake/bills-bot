@@ -8,7 +8,6 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/kevin-jake/bills-bot/internal/domain"
-	"github.com/kevin-jake/bills-bot/internal/parse"
 	"github.com/kevin-jake/bills-bot/internal/report"
 	"github.com/kevin-jake/bills-bot/internal/tracker"
 )
@@ -30,44 +29,14 @@ func (b *Bot) handleHistory(message *tgbotapi.Message, args []string) {
 		return
 	}
 
-	bills, err := b.tracker.AllBills()
+	bill, ok := b.resolveBill(message.Chat.ID, typed, everything)
+	if !ok {
+		return
+	}
+
+	history, err := b.tracker.History(bill.ID, historyMonths)
 	if err != nil {
-		log.Printf("failed to read the bills for /history: %v", err)
-		b.send(message.Chat.ID, "I could not read the bill list just now. Try again in a moment.")
-		return
-	}
-
-	candidates := make([]parse.Candidate, 0, len(bills))
-	byID := make(map[int64]domain.Bill, len(bills))
-	for _, bill := range bills {
-		candidates = append(candidates, parse.Candidate{
-			ID: bill.ID, Name: bill.Name, Aliases: bill.Aliases, Last4: bill.CardLast4})
-		byID[bill.ID] = bill
-	}
-
-	matches := parse.MatchBill(typed, candidates)
-	switch len(matches) {
-	case 0:
-		b.sendHTML(message.Chat.ID, "No bill matches “"+html.EscapeString(typed)+
-			"”. <code>/bills</code> lists them.")
-		return
-	case 1:
-	default:
-		// A history is a whole message rather than a tap on a line, so a tie is answered
-		// with the names to choose from rather than with buttons: typing one more word is
-		// quicker than a round trip through a keyboard.
-		var names []string
-		for _, match := range matches {
-			names = append(names, "<b>"+html.EscapeString(byID[match.ID].DisplayName())+"</b>")
-		}
-		b.sendHTML(message.Chat.ID, "“"+html.EscapeString(typed)+"” could be "+
-			strings.Join(names, " or ")+". Which one?")
-		return
-	}
-
-	history, err := b.tracker.History(matches[0].ID, historyMonths)
-	if err != nil {
-		log.Printf("failed to read the history of bill %d: %v", matches[0].ID, err)
+		log.Printf("failed to read the history of bill %d: %v", bill.ID, err)
 		b.send(message.Chat.ID, "I could not read that bill's history just now. Try again in a moment.")
 		return
 	}

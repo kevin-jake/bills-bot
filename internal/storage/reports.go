@@ -28,7 +28,7 @@ func ListBillHistory(db *gorm.DB, billID int64, limit int) ([]HistoryLine, error
 		FROM payables
 		JOIN cycles ON cycles.id = payables.cycle_id
 		JOIN bills  ON bills.id = payables.bill_id
-		WHERE payables.bill_id = ?
+		WHERE payables.bill_id = ? AND `+onTheBoard+`
 		ORDER BY cycles.month DESC
 		LIMIT ?`, billID, limit).Scan(&lines).Error
 	if err != nil {
