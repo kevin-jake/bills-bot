@@ -123,3 +123,26 @@ func LatestPayableEvent(db *gorm.DB, payableID int64) (*Event, error) {
 	}
 	return &found[0], nil
 }
+
+// ListBills returns every Bill, archived ones included, ordered within a Section. Reports
+// read this rather than ListActiveBills: a Bill that has left the standing list still has
+// the months it was on it.
+func ListBills(db *gorm.DB) ([]Bill, error) {
+	var bills []Bill
+	if err := db.Order("display_order, id").Find(&bills).Error; err != nil {
+		return nil, fmt.Errorf("list bills: %w", err)
+	}
+	return bills, nil
+}
+
+// FindBill returns the Bill with id, archived or not, or nil when there is none.
+func FindBill(db *gorm.DB, id int64) (*Bill, error) {
+	var found []Bill
+	if err := db.Where("id = ?", id).Limit(1).Find(&found).Error; err != nil {
+		return nil, fmt.Errorf("find bill %d: %w", id, err)
+	}
+	if len(found) == 0 {
+		return nil, nil
+	}
+	return &found[0], nil
+}

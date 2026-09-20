@@ -227,3 +227,12 @@ func DeleteTransfer(db *gorm.DB, id int64) error {
 	}
 	return nil
 }
+
+// ListCycles returns every Cycle, oldest month first.
+func ListCycles(db *gorm.DB) ([]Cycle, error) {
+	var cycles []Cycle
+	if err := db.Order("month").Find(&cycles).Error; err != nil {
+		return nil, fmt.Errorf("list cycles: %w", err)
+	}
+	return cycles, nil
+}

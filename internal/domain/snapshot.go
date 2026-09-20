@@ -64,15 +64,7 @@ func (s Snapshot) SectionGroups() []SectionPayables {
 }
 
 // PaidCount is how many Payables have been paid.
-func (s Snapshot) PaidCount() int {
-	paid := 0
-	for _, p := range s.Payables {
-		if p.Paid() {
-			paid++
-		}
-	}
-	return paid
-}
+func (s Snapshot) PaidCount() int { return PaidIn(s.Payables) }
 
 // AllPaid reports whether nothing is left to pay, which is when a Cycle closes. A Cycle
 // with no Payables at all has nothing left to pay either.
@@ -162,4 +154,73 @@ func (s Snapshot) TransferLines() []TransferLine {
 		lines = append(lines, line)
 	}
 	return lines
+}
+
+// CashOut sums the Payables Kevin pays himself. It is the money that genuinely leaves the
+// household this month: what Kevin sends into Sheena's accounts comes back as a charge on
+// the UnionBank card, which is itself a Bill here, so adding those Transfers to the bills
+// they pay for would count the same pesos twice.
+func (s Snapshot) CashOut() Tally {
+	var tally Tally
+	for _, p := range s.Payables {
+		if p.Channel == KevinDirect {
+			tally.Add(p)
+		}
+	}
+	return tally
+}
+
+// ChannelPayables is one Payment Channel and the Payables paid through it.
+type ChannelPayables struct {
+	Channel  Channel
+	Payables []Payable
+}
+
+// Subtotal sums every Payable on the Channel.
+func (c ChannelPayables) Subtotal() Tally {
+	var tally Tally
+	for _, p := range c.Payables {
+		tally.Add(p)
+	}
+	return tally
+}
+
+// ChannelGroups groups the Payables by how they are paid, in the order the bot offers the
+// Channels. A Channel nothing is paid through is left out, as an empty Section is.
+func (s Snapshot) ChannelGroups() []ChannelPayables {
+	byChannel := make(map[Channel][]Payable)
+	for _, p := range s.Payables {
+		byChannel[p.Channel] = append(byChannel[p.Channel], p)
+	}
+
+	groups := make([]ChannelPayables, 0, len(byChannel))
+	for _, channel := range Channels() {
+		if payables := byChannel[channel]; len(payables) > 0 {
+			groups = append(groups, ChannelPayables{Channel: channel, Payables: payables})
+		}
+	}
+	return groups
+}
+
+// PaidIn counts how many of a set of Payables have been paid, which is what lets a summary
+// say "1 of 3 paid" under a Section or a Channel.
+func PaidIn(payables []Payable) int {
+	paid := 0
+	for _, p := range payables {
+		if p.Paid() {
+			paid++
+		}
+	}
+	return paid
+}
+
+// SectionName names the Section a Payable is listed under, or empty when the Cycle was
+// read without its Sections.
+func (s Snapshot) SectionName(sectionID int64) string {
+	for _, section := range s.Sections {
+		if section.ID == sectionID {
+			return section.Name
+		}
+	}
+	return ""
 }

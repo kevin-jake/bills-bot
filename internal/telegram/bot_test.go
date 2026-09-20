@@ -26,7 +26,9 @@ const (
 
 type fakeSender struct {
 	messages []tgbotapi.MessageConfig
-	requests []tgbotapi.Chattable
+	// documents are the files sent, which is how an export arrives rather than as text.
+	documents []tgbotapi.DocumentConfig
+	requests  []tgbotapi.Chattable
 	// nextID numbers sent messages as Telegram would, so a Board's message id can be traced.
 	nextID int
 	// refusePins makes pinning fail, as it does when the bot is not an admin.
@@ -39,6 +41,9 @@ func (s *fakeSender) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
 	s.nextID++
 	if msg, ok := c.(tgbotapi.MessageConfig); ok {
 		s.messages = append(s.messages, msg)
+	}
+	if doc, ok := c.(tgbotapi.DocumentConfig); ok {
+		s.documents = append(s.documents, doc)
 	}
 	return tgbotapi.Message{MessageID: s.nextID}, nil
 }

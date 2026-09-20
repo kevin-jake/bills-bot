@@ -58,6 +58,10 @@ Working today:
 | `/bills` | Prints the standing list, grouped by section, with how each bill is paid |
 | `/bills add <name> \| <section> \| <channel> [\| <card>]` | Adds a bill to the end of its section |
 | `/bills section <name>` | Adds a section to the end of the display order |
+| `/history <bill>` | The last twelve months of one bill, newest first, with what it averages. The bill is named as loosely as a typed shortcut names one, and may be one that has been archived |
+| `/summary [YYYY-MM]` | A month totted up by section and by account, with the transfers, **To settle** and **Cash out** |
+| `/export` | Every payable of every month as `bills_export.csv` |
+| `/export transfers` | Every account's month as `transfers_export.csv` |
 | `/cancel` | Withdraws the question the bot is waiting for you to answer |
 
 Channels are written as a person would say them: `kevin`, `sheena bdo`, `sheena bpi`,
@@ -73,6 +77,23 @@ month it falls due, so a Board line reads
 `☐ BPI Visa CC ••7577 · ₱5,000.00 · Sheena BPI · due 28`. The digits are a name the bot answers
 to, so `7577 5000` enters that card's amount. A month too crowded to fit gives the digits up
 before it gives up a bill.
+
+## Reading it back
+
+`/summary` answers the two questions the Board deliberately does not. **To settle** is the
+checklist figure the Board carries — everything except the charges that ride on a card, since
+those already sit inside the balance of a card that is itself on the list. **Cash out** is the
+smaller figure: the bills Kevin pays himself, which is the money that genuinely leaves the
+household. Kevin funds Sheena's accounts from a card that is on the list too, so summing the
+transfers alongside the bills they pay for would count the same pesos twice.
+
+`/history <bill>` reads one bill down the months instead of one month across the bills. Months
+whose amount was never entered are shown as `—` and left out of the average rather than counted
+as nothing; a month entered as zero is real and counts.
+
+`/export` is what ADR 0001 promises in return for the bot's SQLite being the system of record:
+plain CSV with no ₱ or thousands separators, dates in Manila, and one row per payable — or per
+account per month, with `/export transfers`. Nothing is locked in.
 
 ## On its own
 

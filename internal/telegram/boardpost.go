@@ -1,7 +1,6 @@
 package telegram
 
 import (
-	"errors"
 	"html"
 	"log"
 	"strings"
@@ -65,30 +64,8 @@ func (b *Bot) handleNewMonth(message *tgbotapi.Message, args []string) {
 func (b *Bot) handleBoard(message *tgbotapi.Message, args []string) {
 	chatID := message.Chat.ID
 
-	var snap domain.Snapshot
-	var err error
-	if len(args) > 0 {
-		month, parseErr := domain.ParseMonth(args[0])
-		if parseErr != nil {
-			b.sendHTML(chatID, "⚠️ "+html.EscapeString(capitalise(parseErr.Error())+"."))
-			return
-		}
-		snap, err = b.tracker.MonthSnapshot(month)
-	} else {
-		snap, err = b.tracker.CurrentSnapshot()
-	}
-
-	switch {
-	case errors.Is(err, tracker.ErrNoCycle):
-		b.sendHTML(chatID, "No month has been opened yet. <code>/newmonth</code> opens this one.")
-		return
-	case errors.Is(err, tracker.ErrCycleUnknown):
-		b.sendHTML(chatID, "⚠️ "+html.EscapeString(capitalise(err.Error()))+
-			". <code>/newmonth</code> opens a month.")
-		return
-	case err != nil:
-		log.Printf("failed to read a cycle for /board: %v", err)
-		b.send(chatID, "I could not read the board just now. Try again in a moment.")
+	snap, ok := b.snapshotFor(chatID, args)
+	if !ok {
 		return
 	}
 

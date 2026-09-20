@@ -83,7 +83,10 @@ const startText = "📋 <b>Bills</b>\n\n" +
 	"0 means nothing is due and ticks it off. Once everything is paid the month closes.\n" +
 	"<code>/transfer</code> records money sent into one of Sheena's accounts, which marks " +
 	"that account's bills ⏳ funded.\n" +
-	"<code>/bills</code> shows the standing list — what we pay every month, and who pays it.\n\n" +
+	"<code>/bills</code> shows the standing list — what we pay every month, and who pays it.\n" +
+	"<code>/summary</code> tots a month up by section and by account; <code>/history pldt</code> " +
+	"shows what one bill has come to over the past year; <code>/export</code> sends the lot as a " +
+	"CSV file.\n\n" +
 	"You can also just type: <code>pldt 2499</code> or <code>PLDT = 2,499</code> enters an amount, " +
 	"<code>paid bpi cc</code> (or <code>paid bpi cc 5000</code>) marks it paid, and " +
 	"<code>undo pldt</code> takes back the last change. Add a month such as <code>aug</code> " +
@@ -97,6 +100,9 @@ func (b *Bot) Start() {
 		{Command: "newmonth", Description: "Open a month and pin its board"},
 		{Command: "transfer", Description: "Record money sent into one of Sheena's accounts"},
 		{Command: "bills", Description: "The standing bill list"},
+		{Command: "history", Description: "What one bill has come to, month by month"},
+		{Command: "summary", Description: "A month totted up, section by section"},
+		{Command: "export", Description: "Every month as a CSV file"},
 		{Command: "cancel", Description: "Stop answering the question I asked you"},
 	}
 	if _, err := b.sender.Request(tgbotapi.NewSetMyCommands(commands...)); err != nil {
@@ -170,12 +176,18 @@ func (b *Bot) handleCommand(message *tgbotapi.Message, command string, args []st
 		b.handleNewMonth(message, args)
 	case "bills":
 		b.handleBills(message, args)
+	case "history":
+		b.handleHistory(message, args)
+	case "summary":
+		b.handleSummary(message, args)
+	case "export":
+		b.handleExport(message, args)
 	case "transfer":
 		b.handleTransfer(message, args)
 	case "cancel":
 		b.handleCancel(message)
 	default:
-		b.send(message.Chat.ID, "I do not know that command. Try /start, /board or /bills.")
+		b.send(message.Chat.ID, "I do not know that command. Try /start, /board, /bills or /summary.")
 	}
 }
 

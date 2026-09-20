@@ -47,6 +47,12 @@ func (m Month) Title() string {
 	return fmt.Sprintf("%s %d", m.Month, m.Year)
 }
 
+// Short is how a list of months names one: "Sep 2026". A history of twelve rows is easier
+// to read down when every month is the same width.
+func (m Month) Short() string {
+	return fmt.Sprintf("%s %d", m.Month.String()[:3], m.Year)
+}
+
 // Start is midnight on the 1st, in Manila.
 func (m Month) Start() time.Time {
 	return time.Date(m.Year, m.Month, 1, 0, 0, 0, 0, Manila)

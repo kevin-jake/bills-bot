@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// bills runs a /bills command as Kevin in the group and returns what the bot said.
-func bills(t *testing.T, bot *Bot, sender *fakeSender, text string) string {
+// command runs a command as Kevin in the group and returns what the bot said back.
+func command(t *testing.T, bot *Bot, sender *fakeSender, text string) string {
 	t.Helper()
 
 	before := len(sender.messages)
@@ -22,7 +22,7 @@ func bills(t *testing.T, bot *Bot, sender *fakeSender, text string) string {
 func TestBillsPrintsTheStickyNoteGroupedBySection(t *testing.T) {
 	bot, sender := newTestBot(t)
 
-	text := bills(t, bot, sender, "/bills")
+	text := command(t, bot, sender, "/bills")
 
 	assert.Equal(t, tgbotapi.ModeHTML, sender.messages[0].ParseMode)
 	assert.Contains(t, text, "16 bills in 9 sections")
@@ -37,7 +37,7 @@ func TestBillsPrintsTheStickyNoteGroupedBySection(t *testing.T) {
 func TestBillsListsSectionsInDisplayOrder(t *testing.T) {
 	bot, sender := newTestBot(t)
 
-	text := bills(t, bot, sender, "/bills")
+	text := command(t, bot, sender, "/bills")
 
 	order := []string{
 		"<b>UnionBank</b>", "<b>BDO</b>", "<b>RCBC</b>", "<b>BPI</b>", "<b>HSBC</b>",
@@ -54,20 +54,20 @@ func TestBillsListsSectionsInDisplayOrder(t *testing.T) {
 func TestBillsAddPutsABillOnTheList(t *testing.T) {
 	bot, sender := newTestBot(t)
 
-	added := bills(t, bot, sender, "/bills add Netflix | Utilities | kevin")
+	added := command(t, bot, sender, "/bills add Netflix | Utilities | kevin")
 
 	assert.Contains(t, added, "Added <b>Netflix</b> · Kevin, under <b>Utilities</b>.")
-	assert.Contains(t, bills(t, bot, sender, "/bills"), "• Netflix · Kevin")
-	assert.Contains(t, bills(t, bot, sender, "/bills"), "17 bills in 9 sections")
+	assert.Contains(t, command(t, bot, sender, "/bills"), "• Netflix · Kevin")
+	assert.Contains(t, command(t, bot, sender, "/bills"), "17 bills in 9 sections")
 }
 
 func TestBillsAddChargedToACardNamesTheCard(t *testing.T) {
 	bot, sender := newTestBot(t)
 
-	added := bills(t, bot, sender, "/bills add Spotify | Utilities | card | RCBC Visa Airmiles")
+	added := command(t, bot, sender, "/bills add Spotify | Utilities | card | RCBC Visa Airmiles")
 
 	assert.Contains(t, added, "Added <b>Spotify</b> · → RCBC Visa Airmiles")
-	assert.Contains(t, bills(t, bot, sender, "/bills"), "• Spotify · → RCBC Visa Airmiles")
+	assert.Contains(t, command(t, bot, sender, "/bills"), "• Spotify · → RCBC Visa Airmiles")
 }
 
 func TestBillsAddAcceptsChannelsAsAPersonWritesThem(t *testing.T) {
@@ -84,7 +84,7 @@ func TestBillsAddAcceptsChannelsAsAPersonWritesThem(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			bot, sender := newTestBot(t)
 
-			assert.Contains(t, bills(t, bot, sender, tt.command), tt.want)
+			assert.Contains(t, command(t, bot, sender, tt.command), tt.want)
 		})
 	}
 }
@@ -107,8 +107,8 @@ func TestBillsAddRefusals(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			bot, sender := newTestBot(t)
 
-			assert.Contains(t, bills(t, bot, sender, tt.command), tt.want)
-			assert.Contains(t, bills(t, bot, sender, "/bills"), "16 bills",
+			assert.Contains(t, command(t, bot, sender, tt.command), tt.want)
+			assert.Contains(t, command(t, bot, sender, "/bills"), "16 bills",
 				"a refused bill must not reach the list")
 		})
 	}
@@ -117,14 +117,14 @@ func TestBillsAddRefusals(t *testing.T) {
 func TestBillsSectionAppendsAHeading(t *testing.T) {
 	bot, sender := newTestBot(t)
 
-	added := bills(t, bot, sender, "/bills section Subscriptions")
+	added := command(t, bot, sender, "/bills section Subscriptions")
 	assert.Contains(t, added, "Added section <b>Subscriptions</b>")
 
-	assert.NotContains(t, bills(t, bot, sender, "/bills"), "Subscriptions",
+	assert.NotContains(t, command(t, bot, sender, "/bills"), "Subscriptions",
 		"an empty section is not a heading worth printing")
 
-	bills(t, bot, sender, "/bills add Netflix | Subscriptions | kevin")
-	text := bills(t, bot, sender, "/bills")
+	command(t, bot, sender, "/bills add Netflix | Subscriptions | kevin")
+	text := command(t, bot, sender, "/bills")
 	assert.Contains(t, text, "<b>Subscriptions</b>\n• Netflix · Kevin")
 	assert.Contains(t, text, "17 bills in 10 sections")
 }
@@ -132,22 +132,22 @@ func TestBillsSectionAppendsAHeading(t *testing.T) {
 func TestBillsSectionRefusesADuplicate(t *testing.T) {
 	bot, sender := newTestBot(t)
 
-	assert.Contains(t, bills(t, bot, sender, "/bills section utilities"), "⚠️ There is already a section")
+	assert.Contains(t, command(t, bot, sender, "/bills section utilities"), "⚠️ There is already a section")
 }
 
 func TestBillsShowsUsageForAnythingElse(t *testing.T) {
 	bot, sender := newTestBot(t)
 
-	for _, command := range []string{"/bills wat", "/bills add", "/bills section"} {
-		assert.Contains(t, bills(t, bot, sender, command), "/bills add", "command %q", command)
+	for _, typed := range []string{"/bills wat", "/bills add", "/bills section"} {
+		assert.Contains(t, command(t, bot, sender, typed), "/bills add", "command %q", typed)
 	}
 }
 
 func TestBillsEscapesNamesSoTheyCannotBreakTheMarkup(t *testing.T) {
 	bot, sender := newTestBot(t)
 
-	bills(t, bot, sender, "/bills add <b>Netflix</b> & co | Utilities | kevin")
-	text := bills(t, bot, sender, "/bills")
+	command(t, bot, sender, "/bills add <b>Netflix</b> & co | Utilities | kevin")
+	text := command(t, bot, sender, "/bills")
 
 	assert.Contains(t, text, "• &lt;b&gt;Netflix&lt;/b&gt; &amp; co · Kevin")
 }

@@ -68,3 +68,26 @@ func TestTransferLinesCoverOnlySheenaChannelsInUse(t *testing.T) {
 	assert.Equal(t, int64(2000000), line.Sent.SentCents)
 	assert.False(t, line.AllPaid)
 }
+
+func TestChannelGroupsFollowChannelOrderAndLeaveOutUnusedOnes(t *testing.T) {
+	groups := september().ChannelGroups()
+
+	require.Len(t, groups, 3, "nothing is on sheena's BPI or PSBank accounts")
+	assert.Equal(t, domain.KevinDirect, groups[0].Channel)
+	assert.Equal(t, domain.SheenaBDO, groups[1].Channel)
+	assert.Equal(t, domain.ChargedToCard, groups[2].Channel)
+	assert.Equal(t, domain.Tally{Cents: 1663931, Unknown: 1, Count: 2}, groups[1].Subtotal())
+	assert.Equal(t, 1, domain.PaidIn(groups[0].Payables))
+	assert.Equal(t, 0, domain.PaidIn(groups[1].Payables))
+}
+
+func TestCashOutIsWhatKevinPaysHimself(t *testing.T) {
+	assert.Equal(t, domain.Tally{Cents: 300000, Count: 1}, september().CashOut())
+}
+
+func TestSectionNameOfAPayablesSection(t *testing.T) {
+	snap := september()
+
+	assert.Equal(t, "Utilities", snap.SectionName(3))
+	assert.Equal(t, "", snap.SectionName(99))
+}
